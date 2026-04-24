@@ -3,5 +3,19 @@ export const env = {
 };
 
 export function getApiBaseUrl(): string {
-  return env.apiBaseUrl ?? "http://localhost:8080";
+  const raw = env.apiBaseUrl;
+  if (!raw) {
+    return "http://localhost:8080";
+  }
+
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("localhost") || trimmed.startsWith("127.0.0.1")) {
+    return `http://${trimmed}`;
+  }
+
+  return `https://${trimmed}`;
 }
