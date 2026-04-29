@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { Github, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
+import { AuthService } from "../services/AuthService";
 
 type LoginForm = {
   email: string;
@@ -19,7 +21,9 @@ export function LoginPage() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
-  const signIn = useAuthStore((s) => s.signIn);
+  const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
+
+  const authService = useMemo(() => new AuthService(), []);
 
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
@@ -54,7 +58,12 @@ export function LoginPage() {
     if (!emailPattern.test(form.email) || form.password.length < 6) {
       return;
     }
-    await signIn(form.email, form.password);
+    await signInWithPassword(form.email, form.password);
+  }
+
+  function startOAuth(provider: "github" | "google") {
+    const url = authService.buildOAuthStartUrl(provider);
+    window.location.assign(url);
   }
 
   return (
@@ -75,6 +84,23 @@ export function LoginPage() {
               <p className="mt-2 text-sm text-slate-700 dark:text-white/70">
                 Accede al sistema de gestión de residuos biomédicos.
               </p>
+            </div>
+
+            <div className="mb-4 space-y-2">
+              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("github")}>
+                <Github className="h-4 w-4" />
+                Continuar con GitHub
+              </Button>
+              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("google")}>
+                <ShieldCheck className="h-4 w-4" />
+                Continuar con Google
+              </Button>
+            </div>
+
+            <div className="my-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
+              <div className="text-xs text-slate-600 dark:text-white/60">o con correo</div>
+              <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
             </div>
 
             <div className="space-y-4">
@@ -108,11 +134,12 @@ export function LoginPage() {
                 onClick={handleSubmit}
                 disabled={!canSubmit}
               >
+                <Mail className="h-4 w-4" />
                 {isLoading ? "Validando..." : "Entrar"}
               </Button>
 
               <div className="text-xs text-slate-600 dark:text-white/60">
-                Demo: usa cualquier correo válido y una contraseña de 6+ caracteres.
+                Si el backend no está configurado, revisa `VITE_API_BASE_URL` y CORS.
               </div>
             </div>
           </Surface>

@@ -1,6 +1,14 @@
+import { HttpClient } from "@/core/network/HttpClient";
+import { API_BASE_URL } from "@/core/config/endpoints";
 import type { UserProfile } from "../models/UserProfile";
+import type { AuthProviderId } from "../models/AuthProvider";
 
 type AuthSession = {
+  token: string;
+  user: UserProfile;
+};
+
+type LoginResponse = {
   token: string;
   user: UserProfile;
 };
@@ -8,24 +16,45 @@ type AuthSession = {
 export class AuthService {
   private readonly tokenKey = "biowaste.jwt";
   private readonly userKey = "biowaste.user";
+  private readonly api = HttpClient.getInstance().client;
 
-  public async login(email: string, password: string): Promise<AuthSession> {
-    await this.delay(700);
-
-    if (password.length < 6) {
-      throw new Error("INVALID_CREDENTIALS");
+  public async loginWithPassword(email: string, password: string): Promise<AuthSession> {
+    const response = await this.api.post<LoginResponse>("/api/auth/login", { email, password });
+    const session = response.data;
+    if (!session?.token) {
+      throw new Error("INVALID_LOGIN_RESPONSE");
     }
+    this.setSession({ token: session.token, user: session.user });
+    return { token: session.token, user: session.user };
+  }
 
-    const token = this.createFakeJwt(email);
-    const user: UserProfile = {
+  public async fetchCurrentUser(): Promise<UserProfile> {
+    const response = await this.api.get<UserProfile>("/api/auth/me");
+    return response.data;
+  }
+
+  public buildOAuthStartUrl(provider: AuthProviderId): string {
+    if (provider === "github") {
+      return `${API_BASE_URL}/oauth2/authorization/github`;
+    }
+    if (provider === "google") {
+      return `${API_BASE_URL}/oauth2/authorization/google`;
+    }
+    throw new Error("UNSUPPORTED_PROVIDER");
+  }
+
+  public completeOAuthLogin(token: string, user?: UserProfile): AuthSession {
+    if (!token) {
+      throw new Error("MISSING_TOKEN");
+    }
+    const profile = user ?? {
       id: crypto.randomUUID(),
-      fullName: "Usuario Demo",
-      email,
-      role: "OPERATOR",
+      fullName: "Usuario",
+      email: "",
+      role: "VIEWER",
     };
-
-    this.setSession({ token, user });
-    return { token, user };
+    this.setSession({ token, user: profile });
+    return { token, user: profile };
   }
 
   public logout(): void {
@@ -57,16 +86,5 @@ export class AuthService {
   private setSession(session: AuthSession): void {
     localStorage.setItem(this.tokenKey, session.token);
     localStorage.setItem(this.userKey, JSON.stringify(session.user));
-  }
-
-  private createFakeJwt(email: string): string {
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = btoa(JSON.stringify({ sub: email, iat: Date.now() }));
-    const signature = btoa(crypto.randomUUID());
-    return `${header}.${payload}.${signature}`;
-  }
-
-  private async delay(ms: number): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

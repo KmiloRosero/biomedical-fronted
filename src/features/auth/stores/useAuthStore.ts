@@ -11,7 +11,8 @@ type AuthState = {
   isLoading: boolean;
   error: string | null;
   initialize: () => void;
-  signIn: (email: string, password: string) => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  completeOAuth: (token: string, user?: UserProfile) => void;
   signOut: () => void;
   clearError: () => void;
 };
@@ -33,10 +34,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       user,
     });
   },
-  signIn: async (email, password) => {
+  signInWithPassword: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const session = await authService.login(email, password);
+      const session = await authService.loginWithPassword(email, password);
       set({
         status: "authenticated",
         token: session.token,
@@ -49,9 +50,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         token: null,
         user: null,
         isLoading: false,
-        error: "Credenciales inválidas.",
+        error: "No se pudo iniciar sesión. Verifica tus credenciales o el backend.",
       });
     }
+  },
+  completeOAuth: (token, user) => {
+    const session = authService.completeOAuthLogin(token, user);
+    set({ status: "authenticated", token: session.token, user: session.user });
   },
   signOut: () => {
     authService.logout();

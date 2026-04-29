@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
+import { OAuthCallbackPage } from "@/features/auth/pages/OAuthCallbackPage";
 import { ProtectedRoute } from "@/features/auth/components/ProtectedRoute";
 import { DashboardLayout } from "@/features/dashboard/layout/DashboardLayout";
 import { DashboardHomePage } from "@/features/dashboard/pages/DashboardHomePage";
@@ -45,6 +46,7 @@ export default function App() {
           />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<OAuthCallbackPage />} />
         <Route
           path="/app"
           element={
