@@ -28,6 +28,10 @@ export class AuthService {
     return { token: session.token, user: session.user };
   }
 
+  public async requestEmailLogin(email: string): Promise<void> {
+    await this.api.post("/api/auth/login/email", { email });
+  }
+
   public async fetchCurrentUser(): Promise<UserProfile> {
     const response = await this.api.get<UserProfile>("/api/auth/me");
     return response.data;

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Github, Mail, ShieldCheck } from "lucide-react";
+import toast from "react-hot-toast";
+import { Github, Link2, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
+import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
 import { AuthService } from "../services/AuthService";
-import { getEnabledAuthProviders } from "../config/authProviders";
 
 type LoginForm = {
   email: string;
@@ -23,9 +24,12 @@ export function LoginPage() {
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
   const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
+  const requestEmailLogin = useAuthStore((s) => s.requestEmailLogin);
 
   const authService = useMemo(() => new AuthService(), []);
-  const enabledProviders = useMemo(() => getEnabledAuthProviders(), []);
+
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailLogin, setEmailLogin] = useState("");
 
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
@@ -55,6 +59,8 @@ export function LoginPage() {
 
   const canSubmit = emailPattern.test(form.email) && form.password.length >= 6 && !isLoading;
 
+  const canSendEmailLink = emailPattern.test(emailLogin) && !isLoading;
+
   async function handleSubmit() {
     setTouched({ email: true, password: true });
     if (!emailPattern.test(form.email) || form.password.length < 6) {
@@ -66,6 +72,18 @@ export function LoginPage() {
   function startOAuth(provider: "github" | "google") {
     const url = authService.buildOAuthStartUrl(provider);
     window.location.assign(url);
+  }
+
+  async function handleEmailLink() {
+    if (!emailPattern.test(emailLogin)) {
+      return;
+    }
+    await requestEmailLogin(emailLogin);
+    if (!useAuthStore.getState().error) {
+      toast.success("Te enviamos un enlace de acceso. Revisa tu correo.");
+      setIsEmailDialogOpen(false);
+      setEmailLogin("");
+    }
   }
 
   return (
@@ -88,33 +106,20 @@ export function LoginPage() {
               </p>
             </div>
 
-            {enabledProviders.some((p) => p.id === "github" || p.id === "google") ? (
-              <div className="mb-4 space-y-2">
-                {enabledProviders.some((p) => p.id === "github") ? (
-                  <Button
-                    type="button"
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => startOAuth("github")}
-                  >
-                    <Github className="h-4 w-4" />
-                    Continuar con GitHub
-                  </Button>
-                ) : null}
-
-                {enabledProviders.some((p) => p.id === "google") ? (
-                  <Button
-                    type="button"
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => startOAuth("google")}
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    Continuar con Google
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
+            <div className="mb-4 space-y-2">
+              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("github")}>
+                <Github className="h-4 w-4" />
+                Continuar con GitHub
+              </Button>
+              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("google")}>
+                <ShieldCheck className="h-4 w-4" />
+                Continuar con Google
+              </Button>
+              <Button type="button" className="w-full" variant="secondary" onClick={() => setIsEmailDialogOpen(true)}>
+                <Link2 className="h-4 w-4" />
+                Enviarme enlace al correo
+              </Button>
+            </div>
 
             <div className="my-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
@@ -164,6 +169,30 @@ export function LoginPage() {
           </Surface>
         </motion.div>
       </div>
+
+      <Dialog isOpen={isEmailDialogOpen} title="Acceso por correo" onClose={() => setIsEmailDialogOpen(false)}>
+        <div className="space-y-4">
+          <div className="text-sm text-slate-700 dark:text-white/70">
+            Te enviaremos un enlace seguro para iniciar sesión.
+          </div>
+          <TextField
+            label="Correo"
+            type="email"
+            placeholder="usuario@hospital.com"
+            value={emailLogin}
+            onChange={(e) => setEmailLogin(e.target.value)}
+            autoComplete="email"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setIsEmailDialogOpen(false)} disabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleEmailLink} disabled={!canSendEmailLink} isLoading={isLoading}>
+              Enviar enlace
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -12,6 +12,7 @@ type AuthState = {
   error: string | null;
   initialize: () => void;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  requestEmailLogin: (email: string) => Promise<void>;
   completeOAuth: (token: string, user?: UserProfile) => void;
   signOut: () => void;
   clearError: () => void;
@@ -51,6 +52,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: null,
         isLoading: false,
         error: "No se pudo iniciar sesión. Verifica tus credenciales o el backend.",
+      });
+    }
+  },
+  requestEmailLogin: async (email) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authService.requestEmailLogin(email);
+      set({ isLoading: false });
+    } catch {
+      set({
+        isLoading: false,
+        error: "No se pudo enviar el enlace al correo. Verifica el backend y CORS.",
       });
     }
   },
