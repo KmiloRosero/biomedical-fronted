@@ -7,6 +7,7 @@ import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
 import { AuthService } from "../services/AuthService";
+import { getEnabledAuthProviders } from "../config/authProviders";
 
 type LoginForm = {
   email: string;
@@ -24,6 +25,7 @@ export function LoginPage() {
   const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
 
   const authService = useMemo(() => new AuthService(), []);
+  const enabledProviders = useMemo(() => getEnabledAuthProviders(), []);
 
   const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
   const [touched, setTouched] = useState<{ email: boolean; password: boolean }>({
@@ -86,16 +88,33 @@ export function LoginPage() {
               </p>
             </div>
 
-            <div className="mb-4 space-y-2">
-              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("github")}>
-                <Github className="h-4 w-4" />
-                Continuar con GitHub
-              </Button>
-              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("google")}>
-                <ShieldCheck className="h-4 w-4" />
-                Continuar con Google
-              </Button>
-            </div>
+            {enabledProviders.some((p) => p.id === "github" || p.id === "google") ? (
+              <div className="mb-4 space-y-2">
+                {enabledProviders.some((p) => p.id === "github") ? (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => startOAuth("github")}
+                  >
+                    <Github className="h-4 w-4" />
+                    Continuar con GitHub
+                  </Button>
+                ) : null}
+
+                {enabledProviders.some((p) => p.id === "google") ? (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => startOAuth("google")}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Continuar con Google
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="my-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
