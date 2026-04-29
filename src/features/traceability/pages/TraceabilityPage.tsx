@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, CheckCircle2, Factory, Hospital, MapPin, PackageOpen, Truck } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Surface } from "@/shared/ui/Surface";
 import type { WasteStage, WasteStageEvent, WasteStageId, WasteStageStatus } from "../models/WasteStage";
 import { WasteTimeline, type WasteTimelineItem } from "../components/WasteTimeline";
-import { SimulatedMap } from "../components/SimulatedMap";
+import { TraceabilityMap } from "../components/TraceabilityMap";
 
 type StageState = {
   currentIndex: number;
@@ -25,21 +25,11 @@ export function TraceabilityPage() {
 
   const [isTracking, setIsTracking] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
-  const timeoutsRef = useRef<number[]>([]);
 
   const [stageState, setStageState] = useState<StageState>({
     currentIndex: 0,
     events: {},
   });
-
-  useEffect(() => {
-    return () => {
-      for (const id of timeoutsRef.current) {
-        window.clearTimeout(id);
-      }
-      timeoutsRef.current = [];
-    };
-  }, []);
 
   const timelineItems = useMemo<WasteTimelineItem[]>(() => {
     return stages.map((stage, index) => {
@@ -60,11 +50,6 @@ export function TraceabilityPage() {
       return;
     }
 
-    for (const id of timeoutsRef.current) {
-      window.clearTimeout(id);
-    }
-    timeoutsRef.current = [];
-
     const now = Date.now();
     setStageState((prev) => ({
       currentIndex: Math.max(prev.currentIndex, 1),
@@ -76,40 +61,31 @@ export function TraceabilityPage() {
 
     setIsTracking(true);
     setAnimationKey((k) => k + 1);
+  }
 
-    const stepMs = 2500;
-    const t1 = window.setTimeout(() => {
-      setStageState((prev) => ({
-        currentIndex: Math.max(prev.currentIndex, 2),
-        events: {
-          ...prev.events,
-          COLLECTION: prev.events.COLLECTION ?? { stageId: "COLLECTION", timestamp: Date.now() },
-        },
-      }));
-    }, stepMs);
+  function handleMilestone(stageId: WasteStageId) {
+    const index = stages.findIndex((s) => s.id === stageId);
+    if (index < 0) {
+      return;
+    }
 
-    const t2 = window.setTimeout(() => {
-      setStageState((prev) => ({
-        currentIndex: Math.max(prev.currentIndex, 3),
-        events: {
-          ...prev.events,
-          TREATMENT: prev.events.TREATMENT ?? { stageId: "TREATMENT", timestamp: Date.now() },
-        },
-      }));
-    }, stepMs * 2);
+    setStageState((prev) => {
+      const nextCurrentIndex = Math.max(prev.currentIndex, Math.min(stages.length, index + 1));
+      const existing = prev.events[stageId];
+      const nextEvents: Partial<Record<WasteStageId, WasteStageEvent>> = existing
+        ? prev.events
+        : { ...prev.events, [stageId]: { stageId, timestamp: Date.now() } };
+      return { currentIndex: nextCurrentIndex, events: nextEvents };
+    });
 
-    const t3 = window.setTimeout(() => {
-      setStageState((prev) => ({
-        currentIndex: stages.length,
-        events: {
-          ...prev.events,
-          DISPOSAL: prev.events.DISPOSAL ?? { stageId: "DISPOSAL", timestamp: Date.now() },
-        },
-      }));
+    if (stageId === "DISPOSAL") {
       setIsTracking(false);
-    }, stepMs * 3);
+    }
+  }
 
-    timeoutsRef.current = [t1, t2, t3];
+  function handleCompleted() {
+    setIsTracking(false);
+    setStageState((prev) => ({ ...prev, currentIndex: stages.length }));
   }
 
   function reset() {
@@ -161,10 +137,17 @@ export function TraceabilityPage() {
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.06 }}>
           <Surface className="p-4 sm:p-6">
             <div className="mb-4">
-              <div className="text-base font-semibold">Mapa Simulado</div>
-                <div className="text-sm text-slate-700 dark:text-white/60">Hospital → Recolección → Planta → Disposición</div>
+              <div className="text-base font-semibold">Mapa de Trazabilidad</div>
+              <div className="text-sm text-slate-700 dark:text-white/60">
+                Ruta y camión en tiempo real (demo).
+              </div>
             </div>
-            <SimulatedMap isTracking={isTracking} animationKey={animationKey} />
+            <TraceabilityMap
+              isTracking={isTracking}
+              animationKey={animationKey}
+              onMilestone={handleMilestone}
+              onCompleted={handleCompleted}
+            />
           </Surface>
         </motion.div>
       </div>
