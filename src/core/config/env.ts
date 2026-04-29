@@ -5,7 +5,10 @@ export const env = {
 export function getApiBaseUrl(): string {
   const raw = env.apiBaseUrl;
   if (!raw) {
-    return "http://localhost:8080";
+    const isDev = import.meta.env.MODE === "development";
+    return isDev
+      ? "http://localhost:8080"
+      : "https://biomedical-waste-platform-production.up.railway.app";
   }
 
   const trimmed = raw.trim().replace(/\/+$/, "");
