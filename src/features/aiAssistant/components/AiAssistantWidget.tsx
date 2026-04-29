@@ -9,6 +9,7 @@ import { useAiAssistantStore } from "../stores/useAiAssistantStore";
 export function AiAssistantWidget() {
   const isOpen = useAiAssistantStore((s) => s.isOpen);
   const isTyping = useAiAssistantStore((s) => s.isTyping);
+  const errorDetails = useAiAssistantStore((s) => s.errorDetails);
   const history = useAiAssistantStore((s) => s.history);
   const historyVersion = useAiAssistantStore((s) => s.historyVersion);
   const open = useAiAssistantStore((s) => s.open);
@@ -99,6 +100,12 @@ export function AiAssistantWidget() {
                       <div className="rounded-2xl bg-slate-900/5 px-4 py-2 text-sm text-slate-700 dark:bg-white/10 dark:text-white/80">
                         Escribiendo...
                       </div>
+                    </div>
+                  ) : null}
+
+                  {errorDetails ? (
+                    <div className="rounded-2xl border border-slate-200/70 bg-slate-900/5 px-4 py-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
+                      {errorDetails}
                     </div>
                   ) : null}
                   <div ref={bottomRef} />
