@@ -78,9 +78,9 @@ export class AuthService {
     return { token, user };
   }
 
-  public async signInWithOAuth(provider: Extract<AuthProviderId, "github" | "google">): Promise<string> {
+  public async signInWithOAuth(provider: Extract<AuthProviderId, "github" | "facebook">): Promise<string> {
     const redirectTo = `${window.location.origin}/auth/callback`;
-    const supabaseProvider = provider === "github" ? "github" : "google";
+    const supabaseProvider = provider === "github" ? "github" : "facebook";
     const { data, error } = await this.supabase.auth.signInWithOAuth({
       provider: supabaseProvider,
       options: { redirectTo },

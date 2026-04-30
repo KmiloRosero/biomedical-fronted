@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Github, Link2, Mail, ShieldCheck } from "lucide-react";
+import { Facebook, Github, Link2, Mail } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
@@ -79,7 +79,7 @@ export function LoginPage() {
     await signInWithPassword(form.email, form.password);
   }
 
-  function startOAuth(provider: "github" | "google") {
+  function startOAuth(provider: "github" | "facebook") {
     void signInWithOAuth(provider);
   }
 
@@ -120,9 +120,9 @@ export function LoginPage() {
                 <Github className="h-4 w-4" />
                 Continuar con GitHub
               </Button>
-              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("google")}>
-                <ShieldCheck className="h-4 w-4" />
-                Continuar con Google
+              <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("facebook")}>
+                <Facebook className="h-4 w-4" />
+                Continuar con Facebook
               </Button>
               <Button type="button" className="w-full" variant="secondary" onClick={() => setIsEmailDialogOpen(true)}>
                 <Link2 className="h-4 w-4" />
