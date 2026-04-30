@@ -12,6 +12,7 @@ type AuthState = {
   error: string | null;
   initialize: () => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (email: string, password: string) => Promise<void>;
   requestEmailLogin: (email: string) => Promise<void>;
   signInWithOAuth: (provider: "github" | "google") => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
@@ -50,14 +51,27 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: session.user,
         isLoading: false,
       });
-    } catch {
+    } catch (err: unknown) {
       set({
         status: "unauthenticated",
         token: null,
         user: null,
         isLoading: false,
-        error: "No se pudo iniciar sesión. Verifica tus credenciales.",
+        error: mapAuthErrorToMessage(err),
       });
+    }
+  },
+  signUpWithPassword: async (email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const session = await authService.signUpWithPassword(email, password);
+      if (session) {
+        set({ status: "authenticated", token: session.token, user: session.user, isLoading: false });
+        return;
+      }
+      set({ isLoading: false });
+    } catch (err: unknown) {
+      set({ isLoading: false, error: mapAuthErrorToMessage(err) });
     }
   },
   requestEmailLogin: async (email) => {
@@ -65,10 +79,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await authService.requestEmailLogin(email);
       set({ isLoading: false });
-    } catch {
+    } catch (err: unknown) {
       set({
         isLoading: false,
-        error: "No se pudo enviar el enlace al correo. Verifica Supabase y CORS.",
+        error: mapAuthErrorToMessage(err),
       });
     }
   },
@@ -78,8 +92,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       const url = await authService.signInWithOAuth(provider);
       set({ isLoading: false });
       window.location.assign(url);
-    } catch {
-      set({ isLoading: false, error: "No se pudo iniciar con proveedor social." });
+    } catch (err: unknown) {
+      set({ isLoading: false, error: mapAuthErrorToMessage(err) });
     }
   },
   exchangeCodeForSession: async (code) => {
@@ -87,8 +101,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const session = await authService.exchangeCodeForSession(code);
       set({ status: "authenticated", token: session.token, user: session.user, isLoading: false });
-    } catch {
-      set({ isLoading: false, error: "No se pudo completar el inicio de sesión." });
+    } catch (err: unknown) {
+      set({ isLoading: false, error: mapAuthErrorToMessage(err) });
     }
   },
   signOut: () => {
@@ -97,3 +111,34 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   clearError: () => set({ error: null }),
 }));
+
+function mapAuthErrorToMessage(err: unknown): string {
+  const message =
+    typeof err === "object" && err && "message" in err && typeof (err as { message: unknown }).message === "string"
+      ? ((err as { message: string }).message ?? "")
+      : "";
+
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("invalid login credentials")) {
+    return "Credenciales inválidas. Verifica tu correo y contraseña.";
+  }
+
+  if (normalized.includes("email not confirmed")) {
+    return "Tu correo no está confirmado. Revisa tu bandeja y confirma el email.";
+  }
+
+  if (normalized.includes("user already registered")) {
+    return "Ese correo ya está registrado. Intenta iniciar sesión.";
+  }
+
+  if (normalized.includes("unsupported provider")) {
+    return "Proveedor no habilitado en Supabase. Actívalo en Authentication → Providers.";
+  }
+
+  if (normalized.includes("missing env var") || normalized.includes("missing env")) {
+    return "Faltan variables de entorno de Supabase en Vercel (URL y Publishable/Anon Key).";
+  }
+
+  return message ? `Error de autenticación: ${message}` : "No se pudo completar la autenticación.";
+}

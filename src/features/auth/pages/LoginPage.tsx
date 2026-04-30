@@ -23,8 +23,11 @@ export function LoginPage() {
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
   const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
+  const signUpWithPassword = useAuthStore((s) => s.signUpWithPassword);
   const requestEmailLogin = useAuthStore((s) => s.requestEmailLogin);
   const signInWithOAuth = useAuthStore((s) => s.signInWithOAuth);
+
+  const [mode, setMode] = useState<"login" | "signup">("login");
 
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [emailLogin, setEmailLogin] = useState("");
@@ -64,6 +67,15 @@ export function LoginPage() {
     if (!emailPattern.test(form.email) || form.password.length < 6) {
       return;
     }
+
+    if (mode === "signup") {
+      await signUpWithPassword(form.email, form.password);
+      if (!useAuthStore.getState().error) {
+        toast.success("Cuenta creada. Si Supabase pide confirmación, revisa tu correo.");
+      }
+      return;
+    }
+
     await signInWithPassword(form.email, form.password);
   }
 
@@ -125,6 +137,31 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-4">
+              <div className="flex gap-2 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-1 dark:border-white/10 dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className={
+                    mode === "login"
+                      ? "flex-1 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 dark:bg-slate-950/60 dark:text-white"
+                      : "flex-1 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-white/70 dark:text-white/70 dark:hover:bg-white/10"
+                  }
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("signup")}
+                  className={
+                    mode === "signup"
+                      ? "flex-1 rounded-xl bg-white px-3 py-2 text-sm font-medium text-slate-900 dark:bg-slate-950/60 dark:text-white"
+                      : "flex-1 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-white/70 dark:text-white/70 dark:hover:bg-white/10"
+                  }
+                >
+                  Crear cuenta
+                </button>
+              </div>
+
               <TextField
                 label="Correo"
                 type="email"
@@ -156,7 +193,7 @@ export function LoginPage() {
                 disabled={!canSubmit}
               >
                 <Mail className="h-4 w-4" />
-                {isLoading ? "Validando..." : "Entrar"}
+                {isLoading ? "Validando..." : mode === "signup" ? "Crear cuenta" : "Entrar"}
               </Button>
 
               <div className="text-xs text-slate-600 dark:text-white/60">

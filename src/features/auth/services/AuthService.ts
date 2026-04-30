@@ -28,6 +28,32 @@ export class AuthService {
     return { token, user };
   }
 
+  public async signUpWithPassword(email: string, password: string): Promise<AuthSession | null> {
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { data, error } = await this.supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectTo },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const token = data.session?.access_token;
+    if (!token) {
+      return null;
+    }
+
+    if (!data.session) {
+      return null;
+    }
+
+    const user = mapSupabaseUserToProfile(data.session.user);
+    this.setSession({ token, user });
+    return { token, user };
+  }
+
   public async requestEmailLogin(email: string): Promise<void> {
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await this.supabase.auth.signInWithOtp({
