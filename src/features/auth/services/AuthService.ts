@@ -1,5 +1,4 @@
-import { HttpClient } from "@/core/network/HttpClient";
-import { API_BASE_URL } from "@/core/config/endpoints";
+import { SupabaseClientFactory } from "@/core/supabase/supabaseClient";
 import type { UserProfile } from "../models/UserProfile";
 import type { AuthProviderId } from "../models/AuthProvider";
 
@@ -8,60 +7,87 @@ type AuthSession = {
   user: UserProfile;
 };
 
-type LoginResponse = {
-  token: string;
-  user: UserProfile;
-};
-
 export class AuthService {
   private readonly tokenKey = "biowaste.jwt";
   private readonly userKey = "biowaste.user";
-  private readonly api = HttpClient.getInstance().client;
+  private readonly supabase = SupabaseClientFactory.getClient();
 
   public async loginWithPassword(email: string, password: string): Promise<AuthSession> {
-    const response = await this.api.post<LoginResponse>("/api/auth/login", { email, password });
-    const session = response.data;
-    if (!session?.token) {
-      throw new Error("INVALID_LOGIN_RESPONSE");
+    const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw error;
     }
-    this.setSession({ token: session.token, user: session.user });
-    return { token: session.token, user: session.user };
+
+    const token = data.session?.access_token;
+    if (!token) {
+      throw new Error("MISSING_ACCESS_TOKEN");
+    }
+
+    const user = mapSupabaseUserToProfile(data.user);
+    this.setSession({ token, user });
+    return { token, user };
   }
 
   public async requestEmailLogin(email: string): Promise<void> {
-    await this.api.post("/api/auth/login/email", { email });
-  }
-
-  public async fetchCurrentUser(): Promise<UserProfile> {
-    const response = await this.api.get<UserProfile>("/api/auth/me");
-    return response.data;
-  }
-
-  public buildOAuthStartUrl(provider: AuthProviderId): string {
-    if (provider === "github") {
-      return `${API_BASE_URL}/oauth2/authorization/github`;
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { error } = await this.supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo },
+    });
+    if (error) {
+      throw error;
     }
-    if (provider === "google") {
-      return `${API_BASE_URL}/oauth2/authorization/google`;
-    }
-    throw new Error("UNSUPPORTED_PROVIDER");
   }
 
-  public completeOAuthLogin(token: string, user?: UserProfile): AuthSession {
+  public async getSession(): Promise<AuthSession | null> {
+    const { data, error } = await this.supabase.auth.getSession();
+    if (error) {
+      throw error;
+    }
+    const token = data.session?.access_token;
+    if (!token || !data.session) {
+      return null;
+    }
+    const user = mapSupabaseUserToProfile(data.session.user);
+    return { token, user };
+  }
+
+  public async signInWithOAuth(provider: Extract<AuthProviderId, "github" | "google">): Promise<string> {
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const supabaseProvider = provider === "github" ? "github" : "google";
+    const { data, error } = await this.supabase.auth.signInWithOAuth({
+      provider: supabaseProvider,
+      options: { redirectTo },
+    });
+    if (error) {
+      throw error;
+    }
+    if (!data.url) {
+      throw new Error("MISSING_OAUTH_URL");
+    }
+    return data.url;
+  }
+
+  public async exchangeCodeForSession(code: string): Promise<AuthSession> {
+    const { data, error } = await this.supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      throw error;
+    }
+
+    const token = data.session?.access_token;
     if (!token) {
-      throw new Error("MISSING_TOKEN");
+      throw new Error("MISSING_ACCESS_TOKEN");
     }
-    const profile = user ?? {
-      id: crypto.randomUUID(),
-      fullName: "Usuario",
-      email: "",
-      role: "VIEWER",
-    };
-    this.setSession({ token, user: profile });
-    return { token, user: profile };
+    if (!data.session) {
+      throw new Error("MISSING_SESSION");
+    }
+    const user = mapSupabaseUserToProfile(data.session.user);
+    this.setSession({ token, user });
+    return { token, user };
   }
 
   public logout(): void {
+    void this.supabase.auth.signOut();
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.userKey);
   }
@@ -91,4 +117,18 @@ export class AuthService {
     localStorage.setItem(this.tokenKey, session.token);
     localStorage.setItem(this.userKey, JSON.stringify(session.user));
   }
+}
+
+function mapSupabaseUserToProfile(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> } | null): UserProfile {
+  const email = user?.email ?? "";
+  const metadata = user?.user_metadata ?? {};
+  const fullName = typeof metadata["full_name"] === "string" ? (metadata["full_name"] as string) : "";
+  const role = (typeof metadata["role"] === "string" ? metadata["role"] : "VIEWER") as UserProfile["role"];
+
+  return {
+    id: user?.id ?? crypto.randomUUID(),
+    fullName: fullName || "Usuario",
+    email,
+    role,
+  };
 }

@@ -10,10 +10,11 @@ type AuthState = {
   user: UserProfile | null;
   isLoading: boolean;
   error: string | null;
-  initialize: () => void;
+  initialize: () => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   requestEmailLogin: (email: string) => Promise<void>;
-  completeOAuth: (token: string, user?: UserProfile) => void;
+  signInWithOAuth: (provider: "github" | "google") => Promise<void>;
+  exchangeCodeForSession: (code: string) => Promise<void>;
   signOut: () => void;
   clearError: () => void;
 };
@@ -26,14 +27,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: false,
   error: null,
-  initialize: () => {
-    const token = authService.getToken();
-    const user = authService.getUser();
-    set({
-      status: token ? "authenticated" : "unauthenticated",
-      token,
-      user,
-    });
+  initialize: async () => {
+    set({ status: "unknown" });
+    try {
+      const session = await authService.getSession();
+      set({
+        status: session ? "authenticated" : "unauthenticated",
+        token: session?.token ?? null,
+        user: session?.user ?? null,
+      });
+    } catch {
+      set({ status: "unauthenticated", token: null, user: null });
+    }
   },
   signInWithPassword: async (email, password) => {
     set({ isLoading: true, error: null });
@@ -51,7 +56,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         token: null,
         user: null,
         isLoading: false,
-        error: "No se pudo iniciar sesión. Verifica tus credenciales o el backend.",
+        error: "No se pudo iniciar sesión. Verifica tus credenciales.",
       });
     }
   },
@@ -63,13 +68,28 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       set({
         isLoading: false,
-        error: "No se pudo enviar el enlace al correo. Verifica el backend y CORS.",
+        error: "No se pudo enviar el enlace al correo. Verifica Supabase y CORS.",
       });
     }
   },
-  completeOAuth: (token, user) => {
-    const session = authService.completeOAuthLogin(token, user);
-    set({ status: "authenticated", token: session.token, user: session.user });
+  signInWithOAuth: async (provider) => {
+    set({ isLoading: true, error: null });
+    try {
+      const url = await authService.signInWithOAuth(provider);
+      set({ isLoading: false });
+      window.location.assign(url);
+    } catch {
+      set({ isLoading: false, error: "No se pudo iniciar con proveedor social." });
+    }
+  },
+  exchangeCodeForSession: async (code) => {
+    set({ isLoading: true, error: null });
+    try {
+      const session = await authService.exchangeCodeForSession(code);
+      set({ status: "authenticated", token: session.token, user: session.user, isLoading: false });
+    } catch {
+      set({ isLoading: false, error: "No se pudo completar el inicio de sesión." });
+    }
   },
   signOut: () => {
     authService.logout();

@@ -8,7 +8,6 @@ import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
-import { AuthService } from "../services/AuthService";
 
 type LoginForm = {
   email: string;
@@ -25,8 +24,7 @@ export function LoginPage() {
   const clearError = useAuthStore((s) => s.clearError);
   const signInWithPassword = useAuthStore((s) => s.signInWithPassword);
   const requestEmailLogin = useAuthStore((s) => s.requestEmailLogin);
-
-  const authService = useMemo(() => new AuthService(), []);
+  const signInWithOAuth = useAuthStore((s) => s.signInWithOAuth);
 
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [emailLogin, setEmailLogin] = useState("");
@@ -70,8 +68,7 @@ export function LoginPage() {
   }
 
   function startOAuth(provider: "github" | "google") {
-    const url = authService.buildOAuthStartUrl(provider);
-    window.location.assign(url);
+    void signInWithOAuth(provider);
   }
 
   async function handleEmailLink() {
@@ -163,7 +160,7 @@ export function LoginPage() {
               </Button>
 
               <div className="text-xs text-slate-600 dark:text-white/60">
-                Si el backend no está configurado, revisa `VITE_API_BASE_URL` y CORS.
+                Si no funciona, verifica `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
               </div>
             </div>
           </Surface>

@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment
+.env
+.env.*
+!.env.example
+
 # Tooling
 .vercel
 .trae
