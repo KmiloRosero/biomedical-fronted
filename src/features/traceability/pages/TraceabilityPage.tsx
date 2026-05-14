@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, CheckCircle2, Factory, Hospital, MapPin, PackageOpen, Truck } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Surface } from "@/shared/ui/Surface";
+import { Skeleton } from "@/shared/ui/Skeleton";
 import type { WasteStage, WasteStageEvent, WasteStageId, WasteStageStatus } from "../models/WasteStage";
 import { WasteTimeline, type WasteTimelineItem } from "../components/WasteTimeline";
 import { TraceabilityMap } from "../components/TraceabilityMap";
+import { RoutesService, type BackendRoute, type BackendStop } from "../services/RoutesService";
+import type { LatLngExpression } from "leaflet";
 
 type StageState = {
   currentIndex: number;
@@ -26,10 +29,88 @@ export function TraceabilityPage() {
   const [isTracking, setIsTracking] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
 
+  const [routes, setRoutes] = useState<BackendRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>("");
+  const [stops, setStops] = useState<BackendStop[]>([]);
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(true);
+  const [isLoadingStops, setIsLoadingStops] = useState(false);
+  const routesService = useMemo(() => new RoutesService(), []);
+
   const [stageState, setStageState] = useState<StageState>({
     currentIndex: 0,
     events: {},
   });
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadRoutes() {
+      setIsLoadingRoutes(true);
+      try {
+        const list = await routesService.getRoutes();
+        if (!mounted) return;
+        setRoutes(list);
+        const firstId = list[0] ? String(extractRouteId(list[0]) ?? "") : "";
+        if (firstId) {
+          setSelectedRouteId(firstId);
+        }
+      } finally {
+        if (!mounted) return;
+        setIsLoadingRoutes(false);
+      }
+    }
+    void loadRoutes();
+    return () => {
+      mounted = false;
+    };
+  }, [routesService]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadStops() {
+      if (!selectedRouteId) {
+        setStops([]);
+        return;
+      }
+      setIsLoadingStops(true);
+      try {
+        const list = await routesService.getStops(selectedRouteId);
+        if (!mounted) return;
+        setStops(list);
+      } catch {
+        if (!mounted) return;
+        setStops([]);
+      } finally {
+        if (!mounted) return;
+        setIsLoadingStops(false);
+      }
+    }
+    void loadStops();
+    return () => {
+      mounted = false;
+    };
+  }, [routesService, selectedRouteId]);
+
+  const mapPoints = useMemo(() => {
+    const geoStops = stops
+      .map((s) => ({ stop: s, pos: extractLatLng(s) }))
+      .filter((x): x is { stop: BackendStop; pos: LatLngExpression } => Boolean(x.pos));
+
+    if (geoStops.length < 2) {
+      return undefined;
+    }
+
+    const first = geoStops[0]!;
+    const second = geoStops[Math.min(1, geoStops.length - 1)]!;
+    const third = geoStops[Math.min(2, geoStops.length - 1)]!;
+    const last = geoStops[geoStops.length - 1]!;
+
+    return [
+      { id: "GENERATED" as const, label: "Hospital", position: first.pos },
+      { id: "COLLECTION" as const, label: "En Recolección", position: second.pos },
+      { id: "TREATMENT" as const, label: "Planta de Tratamiento", position: third.pos },
+      { id: "DISPOSAL" as const, label: "Disposición Final", position: last.pos },
+    ];
+  }, [stops]);
 
   const timelineItems = useMemo<WasteTimelineItem[]>(() => {
     return stages.map((stage, index) => {
@@ -105,7 +186,30 @@ export function TraceabilityPage() {
             Rastrea el ciclo de vida de un lote: recolección, tratamiento y disposición final.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-slate-700 dark:text-white/70">Ruta</div>
+            {isLoadingRoutes ? (
+              <Skeleton className="h-10 w-44" />
+            ) : (
+              <select
+                value={selectedRouteId}
+                onChange={(e) => setSelectedRouteId(e.target.value)}
+                className="h-10 rounded-xl border border-slate-300/80 bg-white px-3 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
+              >
+                {routes.map((r, idx) => {
+                  const id = extractRouteId(r);
+                  const label = extractRouteLabel(r, idx);
+                  return (
+                    <option key={String(id ?? idx)} value={String(id ?? "")}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+          </div>
+
           <Button type="button" onClick={startTracking} isLoading={isTracking} disabled={isTracking}>
             <Activity className="h-4 w-4" />
             {isTracking ? "Rastreando..." : "Iniciar Rastreo"}
@@ -139,7 +243,7 @@ export function TraceabilityPage() {
             <div className="mb-4">
               <div className="text-base font-semibold">Mapa de Trazabilidad</div>
               <div className="text-sm text-slate-700 dark:text-white/60">
-                Ruta y camión en tiempo real (demo).
+                {isLoadingStops ? "Cargando paradas de la ruta..." : "Ruta y camión en tiempo real."}
               </div>
             </div>
             <TraceabilityMap
@@ -147,12 +251,41 @@ export function TraceabilityPage() {
               animationKey={animationKey}
               onMilestone={handleMilestone}
               onCompleted={handleCompleted}
+              {...(mapPoints ? { customPoints: mapPoints } : {})}
             />
           </Surface>
         </motion.div>
       </div>
     </div>
   );
+}
+
+function extractRouteId(route: BackendRoute): unknown {
+  return route["id"] ?? route["routeId"] ?? route["uuid"] ?? route["_id"];
+}
+
+function extractRouteLabel(route: BackendRoute, index: number): string {
+  const id = extractRouteId(route);
+  const name = route["name"] ?? route["code"] ?? route["label"];
+  if (name) {
+    return String(name);
+  }
+  if (id) {
+    return `Ruta ${String(id)}`;
+  }
+  return `Ruta ${index + 1}`;
+}
+
+function extractLatLng(stop: BackendStop): LatLngExpression | null {
+  const lat = stop["lat"] ?? stop["latitude"] ?? stop["y"];
+  const lng = stop["lng"] ?? stop["lon"] ?? stop["longitude"] ?? stop["x"];
+
+  const latN = Number(lat);
+  const lngN = Number(lng);
+  if (!Number.isFinite(latN) || !Number.isFinite(lngN)) {
+    return null;
+  }
+  return [latN, lngN];
 }
 
 function resolveStatus(index: number, currentIndex: number, total: number): WasteStageStatus {

@@ -4,12 +4,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { NavLink } from "react-router-dom";
 import {
   Activity,
+  Bell,
   ClipboardList,
+  Route,
   LayoutGrid,
   MapPinned,
   MessageSquareText,
   Recycle,
   BarChart3,
+  FileBarChart2,
   Settings,
   Workflow,
   Truck,
@@ -46,6 +49,26 @@ export function Sidebar() {
         to: "/app/traceability",
         label: "Trazabilidad",
         icon: <Workflow className="h-5 w-5" />,
+      },
+      {
+        to: "/app/waste",
+        label: "Residuos",
+        icon: <Recycle className="h-5 w-5" />,
+      },
+      {
+        to: "/app/routes",
+        label: "Rutas",
+        icon: <Route className="h-5 w-5" />,
+      },
+      {
+        to: "/app/alerts",
+        label: "Alertas",
+        icon: <Bell className="h-5 w-5" />,
+      },
+      {
+        to: "/app/reports",
+        label: "Reportes",
+        icon: <FileBarChart2 className="h-5 w-5" />,
       },
       {
         to: "/app/system-monitor",

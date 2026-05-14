@@ -13,6 +13,10 @@ import { OperationsCenterPage } from "@/features/operationsCenter/pages/Operatio
 import { SystemMonitorPage } from "@/features/systemMonitor/pages/SystemMonitorPage";
 import { TraceabilityPage } from "@/features/traceability/pages/TraceabilityPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
+import { WastePage } from "@/features/waste/pages/WastePage";
+import { RoutesPage } from "@/features/routes/pages/RoutesPage";
+import { AlertsPage } from "@/features/alerts/pages/AlertsPage";
+import { ReportsPage } from "@/features/reports/pages/ReportsPage";
 import { MunicipalitiesPage } from "@/features/admin/pages/MunicipalitiesPage";
 import { WasteTypesPage } from "@/features/admin/pages/WasteTypesPage";
 import { TransportFleetPage } from "@/features/admin/pages/TransportFleetPage";
@@ -67,6 +71,10 @@ export default function App() {
           <Route path="home" element={<DashboardHomePage />} />
           <Route path="operations" element={<OperationsCenterPage />} />
           <Route path="traceability" element={<TraceabilityPage />} />
+          <Route path="waste" element={<WastePage />} />
+          <Route path="routes" element={<RoutesPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="system-monitor" element={<SystemMonitorPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="admin/municipalities" element={<MunicipalitiesPage />} />

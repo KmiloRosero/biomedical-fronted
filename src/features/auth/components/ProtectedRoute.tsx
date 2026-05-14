@@ -1,9 +1,14 @@
 import type { PropsWithChildren } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../stores/useAuthStore";
+import { isAuthRequired } from "@/core/config/flags";
 
 export function ProtectedRoute({ children }: PropsWithChildren) {
   const status = useAuthStore((s) => s.status);
+
+  if (!isAuthRequired()) {
+    return <>{children}</>;
+  }
 
   if (status === "unknown") {
     return (

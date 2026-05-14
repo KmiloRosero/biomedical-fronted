@@ -15,6 +15,7 @@ export type TraceabilityMapProps = {
   animationKey: number;
   onMilestone: (stageId: WasteStageId) => void;
   onCompleted: () => void;
+  customPoints?: Array<{ id: WasteStageId; label: string; position: LatLngExpression }>;
 };
 
 type AnimationCallbacks = {
@@ -75,16 +76,18 @@ class RouteAnimator {
   }
 }
 
-export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompleted }: TraceabilityMapProps) {
-  const points = useMemo<TracePoint[]>(
-    () => [
+export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompleted, customPoints }: TraceabilityMapProps) {
+  const points = useMemo<TracePoint[]>(() => {
+    if (customPoints?.length) {
+      return customPoints.map((p) => ({ id: p.id, label: p.label, position: p.position }));
+    }
+    return [
       { id: "GENERATED", label: "Hospital", position: [4.6533, -74.0837] },
       { id: "COLLECTION", label: "En Recolección", position: [4.6678, -74.0896] },
       { id: "TREATMENT", label: "Planta de Tratamiento", position: [4.7017, -74.0721] },
       { id: "DISPOSAL", label: "Disposición Final", position: [4.7252, -74.055] },
-    ],
-    []
-  );
+    ];
+  }, [customPoints]);
 
   const route = useMemo<Array<[number, number]>>(() => {
     return points.map((p) => asTuple(p.position));
