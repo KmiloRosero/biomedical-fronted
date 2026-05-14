@@ -329,7 +329,7 @@ function ProjectAnimationPanel() {
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-4 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
-        Ideal para demos: explora módulos sin depender del login y luego activa autenticación.
+        Trazabilidad, reportes, alertas y operación en una sola plataforma.
       </div>
     </div>
   );
