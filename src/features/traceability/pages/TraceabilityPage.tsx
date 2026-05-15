@@ -62,6 +62,20 @@ export function TraceabilityPage() {
   const [viewJson, setViewJson] = useState<unknown | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [mapPickMode, setMapPickMode] = useState<"none" | "route" | "stop">("none");
+  const [pendingFirstStop, setPendingFirstStop] = useState<{ lat: number; lng: number } | null>(null);
+  const [createRouteInitial, setCreateRouteInitial] = useState<unknown>({
+    name: "Ruta",
+    code: `R-${Date.now()}`,
+    status: "ACTIVE",
+  });
+  const [createStopInitial, setCreateStopInitial] = useState<unknown>({
+    name: "Parada",
+    lat: 1.2136,
+    lng: -77.2811,
+    stage: "COLLECTION",
+  });
+
   const [stageState, setStageState] = useState<StageState>({
     currentIndex: 0,
     events: {},
@@ -275,6 +289,23 @@ export function TraceabilityPage() {
       const id = extractRouteId(created);
       if (id) {
         setSelectedRouteId(String(id));
+
+        if (pendingFirstStop) {
+          const { lat, lng } = pendingFirstStop;
+          setPendingFirstStop(null);
+          try {
+            await routesService.createStop(String(id), {
+              name: "Parada inicial",
+              lat,
+              lng,
+              stage: "GENERATED",
+            });
+            toast.success("Parada inicial agregada.");
+            await refreshStops();
+          } catch {
+            toast("Ruta creada. No se pudo crear la parada inicial automáticamente.", { icon: "ℹ️" });
+          }
+        }
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudo crear la ruta.");
@@ -334,6 +365,33 @@ export function TraceabilityPage() {
       toast.error(err instanceof Error ? err.message : "No se pudo crear la parada.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function handleMapPick(pos: { lat: number; lng: number }) {
+    if (mapPickMode === "route") {
+      setPendingFirstStop(pos);
+      setCreateRouteInitial({
+        name: "Ruta (Pasto)",
+        code: `R-${Date.now()}`,
+        status: "ACTIVE",
+      });
+      setIsCreateRouteOpen(true);
+      setMapPickMode("none");
+      toast.success("Ubicación capturada. Completa los datos de la ruta.");
+      return;
+    }
+
+    if (mapPickMode === "stop") {
+      setCreateStopInitial({
+        name: `Parada ${stops.length + 1}`,
+        lat: pos.lat,
+        lng: pos.lng,
+        stage: "COLLECTION",
+      });
+      setIsCreateStopOpen(true);
+      setMapPickMode("none");
+      toast.success("Ubicación capturada. Completa los datos de la parada.");
     }
   }
 
@@ -434,10 +492,29 @@ export function TraceabilityPage() {
                 <div className="text-base font-semibold">Rutas</div>
                 <div className="mt-1 text-sm text-slate-700 dark:text-white/60">Selecciona una ruta o crea una nueva.</div>
               </div>
-              <Button type="button" onClick={() => setIsCreateRouteOpen(true)}>
-                <CirclePlus className="h-4 w-4" />
-                Nueva
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setMapPickMode("route");
+                    toast("Haz clic en el mapa para elegir el punto inicial de la ruta.", { icon: "🗺️" });
+                  }}
+                >
+                  <MapPin className="h-4 w-4" />
+                  En mapa
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setCreateRouteInitial({ name: "Ruta", code: `R-${Date.now()}`, status: "ACTIVE" });
+                    setIsCreateRouteOpen(true);
+                  }}
+                >
+                  <CirclePlus className="h-4 w-4" />
+                  Nueva
+                </Button>
+              </div>
             </div>
 
             <div className="mt-4">
@@ -495,10 +572,35 @@ export function TraceabilityPage() {
                 <div className="text-base font-semibold">Paradas</div>
                 <div className="mt-1 text-sm text-slate-700 dark:text-white/60">Ordena y edita los puntos de la ruta.</div>
               </div>
-              <Button type="button" onClick={() => setIsCreateStopOpen(true)} disabled={!selectedRouteId}>
-                <CirclePlus className="h-4 w-4" />
-                Agregar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    if (!selectedRouteId) {
+                      toast.error("Selecciona una ruta primero.");
+                      return;
+                    }
+                    setMapPickMode("stop");
+                    toast("Haz clic en el mapa para agregar una parada.", { icon: "📍" });
+                  }}
+                  disabled={!selectedRouteId}
+                >
+                  <MapPin className="h-4 w-4" />
+                  En mapa
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setCreateStopInitial({ name: "Parada", lat: 1.2136, lng: -77.2811, stage: "COLLECTION" });
+                    setIsCreateStopOpen(true);
+                  }}
+                  disabled={!selectedRouteId}
+                >
+                  <CirclePlus className="h-4 w-4" />
+                  Agregar
+                </Button>
+              </div>
             </div>
 
             <div className="mt-4 space-y-2">
@@ -590,6 +692,18 @@ export function TraceabilityPage() {
                   {isLoadingStops ? "Cargando paradas de la ruta..." : "Ruta y camión en tiempo real."}
                 </div>
               </div>
+              {mapPickMode !== "none" ? (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-200/15 dark:bg-emerald-400/10 dark:text-emerald-100">
+                  <div>
+                    {mapPickMode === "route"
+                      ? "Modo mapa: selecciona el punto inicial de la nueva ruta."
+                      : "Modo mapa: selecciona la ubicación de la nueva parada."}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => setMapPickMode("none")}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : null}
               <TraceabilityMap
                 isTracking={isTracking}
                 animationKey={animationKey}
@@ -597,6 +711,19 @@ export function TraceabilityPage() {
                 onCompleted={handleCompleted}
                 {...(mapPoints ? { customPoints: mapPoints } : {})}
                 waypoints={mapWaypoints.map((w) => ({ label: w.label, position: w.pos }))}
+                {...(mapPickMode === "none" ? {} : { onMapClick: handleMapPick })}
+                clickHint={
+                  mapPickMode === "route"
+                    ? "Haz clic para ubicar el inicio de la ruta"
+                    : mapPickMode === "stop"
+                      ? "Haz clic para ubicar la nueva parada"
+                      : null
+                }
+                draftMarker={
+                  pendingFirstStop && mapPickMode === "none"
+                    ? { label: "Inicio", position: [pendingFirstStop.lat, pendingFirstStop.lng] }
+                    : null
+                }
               />
             </Surface>
           </motion.div>
@@ -605,7 +732,7 @@ export function TraceabilityPage() {
 
       <Dialog isOpen={isCreateRouteOpen} title="Nueva ruta" onClose={() => setIsCreateRouteOpen(false)}>
         <JsonEditor
-          initialValue={{ name: "Ruta", code: `R-${Date.now()}`, status: "ACTIVE" }}
+          initialValue={createRouteInitial}
           onSubmit={createRoute}
           submitLabel="Crear"
           isSubmitting={isSubmitting}
@@ -618,7 +745,7 @@ export function TraceabilityPage() {
 
       <Dialog isOpen={isCreateStopOpen} title="Nueva parada" onClose={() => setIsCreateStopOpen(false)}>
         <JsonEditor
-          initialValue={{ name: "Parada", lat: 1.2136, lng: -77.2811, stage: "COLLECTION" }}
+          initialValue={createStopInitial}
           onSubmit={createStop}
           submitLabel="Crear"
           isSubmitting={isSubmitting}

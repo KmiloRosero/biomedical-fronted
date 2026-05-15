@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LatLngExpression } from "leaflet";
 import L from "leaflet";
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { WasteStageId } from "../models/WasteStage";
 
 type TracePoint = {
@@ -17,6 +17,9 @@ export type TraceabilityMapProps = {
   onCompleted: () => void;
   customPoints?: Array<{ id: WasteStageId; label: string; position: LatLngExpression }>;
   waypoints?: Array<{ label: string; position: LatLngExpression }>;
+  onMapClick?: (pos: { lat: number; lng: number }) => void;
+  clickHint?: string | null;
+  draftMarker?: { label: string; position: LatLngExpression } | null;
 };
 
 type AnimationCallbacks = {
@@ -89,6 +92,9 @@ export function TraceabilityMap({
   onCompleted,
   customPoints,
   waypoints,
+  onMapClick,
+  clickHint,
+  draftMarker,
 }: TraceabilityMapProps) {
   const points = useMemo<TracePoint[]>(() => {
     if (customPoints?.length) {
@@ -164,7 +170,12 @@ export function TraceabilityMap({
   const truckIcon = useMemo(() => createTruckIcon(), []);
 
   return (
-    <div className="h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
+    <div className="relative h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200/70 dark:border-white/10">
+      {clickHint ? (
+        <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-900 backdrop-blur dark:border-emerald-200/20 dark:bg-emerald-400/10 dark:text-emerald-100">
+          {clickHint}
+        </div>
+      ) : null}
       <MapContainer
         center={points[0]!.position}
         zoom={12}
@@ -198,6 +209,10 @@ export function TraceabilityMap({
             ))
           : null}
 
+        {draftMarker ? (
+          <Marker position={draftMarker.position} icon={createWaypointIcon(draftMarker.label, false)} />
+        ) : null}
+
         {points.map((p) => (
           <Marker
             key={p.id}
@@ -211,9 +226,24 @@ export function TraceabilityMap({
         <FollowTruck position={truckPos} />
 
         <FitRoute route={route} />
+
+        {onMapClick ? <MapClickHandler onMapClick={onMapClick} /> : null}
       </MapContainer>
     </div>
   );
+}
+
+function MapClickHandler({
+  onMapClick,
+}: {
+  onMapClick: (pos: { lat: number; lng: number }) => void;
+}) {
+  useMapEvents({
+    click: (e) => {
+      onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
 }
 
 function FollowTruck({ position }: { position: LatLngExpression }) {
