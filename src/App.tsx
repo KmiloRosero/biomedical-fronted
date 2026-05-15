@@ -20,6 +20,7 @@ import { ReportsPage } from "@/features/reports/pages/ReportsPage";
 import { MunicipalitiesPage } from "@/features/admin/pages/MunicipalitiesPage";
 import { WasteTypesPage } from "@/features/admin/pages/WasteTypesPage";
 import { TransportFleetPage } from "@/features/admin/pages/TransportFleetPage";
+import { ProjectOverviewPage } from "@/features/dashboard/pages/ProjectOverviewPage";
 
 const DashboardAnalyticsPage = lazy(() =>
   import("@/features/dashboard/pages/DashboardAnalyticsPage").then((m) => ({
@@ -70,6 +71,7 @@ export default function App() {
             }
           />
           <Route path="home" element={<DashboardHomePage />} />
+          <Route path="about" element={<ProjectOverviewPage />} />
           <Route path="operations" element={<OperationsCenterPage />} />
           <Route path="traceability" element={<TraceabilityPage />} />
           <Route path="waste" element={<WastePage />} />
