@@ -27,6 +27,7 @@ import { WasteTimeline, type WasteTimelineItem } from "../components/WasteTimeli
 import { TraceabilityMap } from "../components/TraceabilityMap";
 import { RoutesService, type BackendRoute, type BackendStop } from "../services/RoutesService";
 import type { LatLngExpression } from "leaflet";
+import { demoRoutes, getDemoStops } from "../data/demoRoutes";
 
 type StageState = {
   currentIndex: number;
@@ -73,12 +74,19 @@ export function TraceabilityPage() {
       try {
         const list = await routesService.getRoutes();
         if (!mounted) return;
-        setRoutes(list);
+        const safeList = list.length ? list : demoRoutes;
+        setRoutes(safeList);
         if (!selectedRouteId) {
-          const firstId = list[0] ? String(extractRouteId(list[0]) ?? "") : "";
+          const firstId = safeList[0] ? String(extractRouteId(safeList[0]) ?? "") : "";
           if (firstId) {
             setSelectedRouteId(firstId);
           }
+        }
+      } catch {
+        if (!mounted) return;
+        setRoutes(demoRoutes);
+        if (!selectedRouteId) {
+          setSelectedRouteId(String(extractRouteId(demoRoutes[0]!) ?? ""));
         }
       } finally {
         if (!mounted) return;
@@ -98,14 +106,20 @@ export function TraceabilityPage() {
         setStops([]);
         return;
       }
+
+      if (selectedRouteId.startsWith("demo-")) {
+        setStops(getDemoStops(selectedRouteId));
+        return;
+      }
+
       setIsLoadingStops(true);
       try {
         const list = await routesService.getStops(selectedRouteId);
         if (!mounted) return;
-        setStops(list);
+        setStops(list.length ? list : getDemoStops(selectedRouteId));
       } catch {
         if (!mounted) return;
-        setStops([]);
+        setStops(getDemoStops(selectedRouteId));
       } finally {
         if (!mounted) return;
         setIsLoadingStops(false);
@@ -214,9 +228,10 @@ export function TraceabilityPage() {
     setIsLoadingRoutes(true);
     try {
       const list = await routesService.getRoutes();
-      setRoutes(list);
+      setRoutes(list.length ? list : demoRoutes);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudieron cargar rutas.");
+      setRoutes(demoRoutes);
     } finally {
       setIsLoadingRoutes(false);
     }
@@ -227,12 +242,19 @@ export function TraceabilityPage() {
       setStops([]);
       return;
     }
+
+    if (selectedRouteId.startsWith("demo-")) {
+      setStops(getDemoStops(selectedRouteId));
+      return;
+    }
+
     setIsLoadingStops(true);
     try {
       const list = await routesService.getStops(selectedRouteId);
-      setStops(list);
+      setStops(list.length ? list : getDemoStops(selectedRouteId));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudieron cargar paradas.");
+      setStops(getDemoStops(selectedRouteId));
     } finally {
       setIsLoadingStops(false);
     }
