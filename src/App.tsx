@@ -20,6 +20,7 @@ import { ReportsPage } from "@/features/reports/pages/ReportsPage";
 import { MunicipalitiesPage } from "@/features/admin/pages/MunicipalitiesPage";
 import { WasteTypesPage } from "@/features/admin/pages/WasteTypesPage";
 import { TransportFleetPage } from "@/features/admin/pages/TransportFleetPage";
+import { isDemoMode } from "@/core/config/flags";
 
 const DashboardAnalyticsPage = lazy(() =>
   import("@/features/dashboard/pages/DashboardAnalyticsPage").then((m) => ({
@@ -49,6 +50,7 @@ export default function App() {
             }}
           />
           <Routes>
+            <Route path="/" element={<EntryRedirect />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/auth/callback" element={<OAuthCallbackPage />} />
         <Route
@@ -99,12 +101,16 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-            <Route path="*" element={<LoginPage />} />
+            <Route path="*" element={<EntryRedirect />} />
           </Routes>
         </NetworkProvider>
       </ThemeProvider>
     </Router>
   );
+}
+
+function EntryRedirect() {
+  return isDemoMode() ? <Navigate to="/app" replace /> : <Navigate to="/login" replace />;
 }
 
 function RouteFallback({ label }: { label: string }) {

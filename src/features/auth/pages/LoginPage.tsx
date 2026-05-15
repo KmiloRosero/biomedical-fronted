@@ -20,6 +20,7 @@ import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
+import { isDemoMode } from "@/core/config/flags";
 
 type LoginForm = {
   email: string;
@@ -55,6 +56,8 @@ export function LoginPage() {
       navigate("/app", { replace: true });
     }
   }, [navigate, status]);
+
+  const demoMode = isDemoMode();
 
   useEffect(() => {
     clearError();
@@ -185,6 +188,12 @@ export function LoginPage() {
                 </div>
 
                 <div className="space-y-4">
+                  {demoMode ? (
+                    <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-900 dark:text-emerald-100">
+                      Acceso directo habilitado. Puedes entrar al sistema sin iniciar sesión.
+                    </div>
+                  ) : null}
+
                   <div className="flex gap-2 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-1 dark:border-white/10 dark:bg-white/5">
                     <button
                       type="button"
@@ -237,11 +246,17 @@ export function LoginPage() {
                     type="button"
                     className="w-full"
                     isLoading={isLoading}
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
+                    onClick={demoMode ? () => navigate("/app") : handleSubmit}
+                    disabled={demoMode ? false : !canSubmit}
                   >
                     <Mail className="h-4 w-4" />
-                    {isLoading ? "Validando..." : mode === "signup" ? "Crear cuenta" : "Entrar"}
+                    {demoMode
+                      ? "Entrar al sistema"
+                      : isLoading
+                        ? "Validando..."
+                        : mode === "signup"
+                          ? "Crear cuenta"
+                          : "Entrar"}
                   </Button>
 
                   <div className="grid gap-2 sm:grid-cols-3">
