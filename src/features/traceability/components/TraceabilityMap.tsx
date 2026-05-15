@@ -103,10 +103,10 @@ export function TraceabilityMap({
       return customPoints.map((p) => ({ id: p.id, label: p.label, position: p.position }));
     }
     return [
-      { id: "GENERATED", label: "Hospital", position: [4.6533, -74.0837] },
-      { id: "COLLECTION", label: "En Recolección", position: [4.6678, -74.0896] },
-      { id: "TREATMENT", label: "Planta de Tratamiento", position: [4.7017, -74.0721] },
-      { id: "DISPOSAL", label: "Disposición Final", position: [4.7252, -74.055] },
+      { id: "GENERATED", label: "Hospital", position: [1.2136, -77.2811] },
+      { id: "COLLECTION", label: "En Recolección", position: [1.2225, -77.292] },
+      { id: "TREATMENT", label: "Planta de Tratamiento", position: [1.239, -77.283] },
+      { id: "DISPOSAL", label: "Disposición Final", position: [1.2485, -77.266] },
     ];
   }, [customPoints]);
 
