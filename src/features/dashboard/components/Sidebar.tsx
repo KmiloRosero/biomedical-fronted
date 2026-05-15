@@ -43,9 +43,9 @@ export function Sidebar() {
 
   const items = useMemo<SidebarItem[]>(
     () => [
+      { to: "/app/about", label: "Acerca", icon: <Info className="h-6 w-6" /> },
       { to: "/app/dashboard", label: "Dashboard", icon: <BarChart3 className="h-6 w-6" /> },
       { to: "/app/home", label: "Inicio", icon: <LayoutGrid className="h-6 w-6" /> },
-      { to: "/app/about", label: "Acerca", icon: <Info className="h-6 w-6" /> },
       {
         to: "/app/operations",
         label: "Operaciones",

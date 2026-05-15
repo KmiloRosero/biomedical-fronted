@@ -137,7 +137,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<Navigate to="/app/dashboard" replace />} />
+                <Route index element={<Navigate to="/app/about" replace />} />
                 <Route
                   path="dashboard"
                   element={
