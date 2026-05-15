@@ -1,4 +1,4 @@
-import { LogOut, Menu, Moon, Settings, Sun, UserCircle2, RefreshCw } from "lucide-react";
+import { LogOut, Menu, Moon, Settings, Sun, UserCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/shared/ui/Button";

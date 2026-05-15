@@ -6,7 +6,6 @@ import {
   Download,
   Recycle,
   RefreshCw,
-  Route,
   Truck,
 } from "lucide-react";
 import {
