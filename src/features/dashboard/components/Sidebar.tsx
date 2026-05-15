@@ -14,6 +14,7 @@ import {
   Recycle,
   BarChart3,
   FileBarChart2,
+  Sparkles,
   Settings,
   Workflow,
   Truck,
@@ -85,6 +86,12 @@ export function Sidebar() {
         label: "Reportes",
         icon: <FileBarChart2 className="h-7 w-7" />,
         roles: ["admin", "operador", "auditor"],
+      },
+      {
+        to: "/app/analyzer",
+        label: "Analizador",
+        icon: <Sparkles className="h-7 w-7" />,
+        roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/system-monitor",

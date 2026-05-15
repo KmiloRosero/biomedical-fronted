@@ -66,6 +66,12 @@ const ReportsPage = lazy(() =>
   }))
 );
 
+const AnalyzerPage = lazy(() =>
+  import("@/features/analyzer/pages/AnalyzerPage").then((m) => ({
+    default: m.AnalyzerPage,
+  }))
+);
+
 const SystemMonitorPage = lazy(() =>
   import("@/features/systemMonitor/pages/SystemMonitorPage").then((m) => ({
     default: m.SystemMonitorPage,
@@ -214,6 +220,16 @@ export default function App() {
                     <RequireRole allowed={["admin", "operador", "auditor"]}>
                       <Suspense fallback={<RouteFallback label="Cargando reportes..." />}>
                         <ReportsPage />
+                      </Suspense>
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="analyzer"
+                  element={
+                    <RequireRole allowed={["admin", "operador", "conductor", "auditor"]}>
+                      <Suspense fallback={<RouteFallback label="Cargando analizador..." />}>
+                        <AnalyzerPage />
                       </Suspense>
                     </RequireRole>
                   }
