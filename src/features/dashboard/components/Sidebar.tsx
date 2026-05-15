@@ -146,7 +146,7 @@ export function Sidebar() {
     return (
     <div
       className={cn(
-        "relative h-full border-r border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-white/5",
+        "relative h-full overflow-hidden border-r border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-white/5",
         collapsed ? "w-[72px]" : "w-[280px]"
       )}
     >
