@@ -47,85 +47,85 @@ export function Sidebar() {
 
   const items = useMemo<SidebarItem[]>(
     () => [
-      { to: "/app/about", label: "Acerca", icon: <Info className="h-6 w-6" /> },
-      { to: "/app/dashboard", label: "Dashboard", icon: <BarChart3 className="h-6 w-6" /> },
-      { to: "/app/home", label: "Inicio", icon: <LayoutGrid className="h-6 w-6" /> },
+      { to: "/app/about", label: "Acerca", icon: <Info className="h-7 w-7" /> },
+      { to: "/app/dashboard", label: "Dashboard", icon: <BarChart3 className="h-7 w-7" /> },
+      { to: "/app/home", label: "Inicio", icon: <LayoutGrid className="h-7 w-7" /> },
       {
         to: "/app/operations",
         label: "Operaciones",
-        icon: <ClipboardList className="h-6 w-6" />,
+        icon: <ClipboardList className="h-7 w-7" />,
         roles: ["admin", "operador"],
       },
       {
         to: "/app/traceability",
         label: "Trazabilidad",
-        icon: <Workflow className="h-6 w-6" />,
+        icon: <Workflow className="h-7 w-7" />,
         roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/waste",
         label: "Residuos",
-        icon: <Recycle className="h-6 w-6" />,
+        icon: <Recycle className="h-7 w-7" />,
         roles: ["admin", "operador", "auditor"],
       },
       {
         to: "/app/routes",
         label: "Rutas",
-        icon: <Route className="h-6 w-6" />,
+        icon: <Route className="h-7 w-7" />,
         roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/alerts",
         label: "Alertas",
-        icon: <Bell className="h-6 w-6" />,
+        icon: <Bell className="h-7 w-7" />,
         roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/reports",
         label: "Reportes",
-        icon: <FileBarChart2 className="h-6 w-6" />,
+        icon: <FileBarChart2 className="h-7 w-7" />,
         roles: ["admin", "operador", "auditor"],
       },
       {
         to: "/app/system-monitor",
         label: "Estabilidad",
-        icon: <Activity className="h-6 w-6" />,
+        icon: <Activity className="h-7 w-7" />,
         roles: ["admin", "auditor"],
       },
       {
         to: "/app/audit",
         label: "Bitácora",
-        icon: <ScrollText className="h-6 w-6" />,
+        icon: <ScrollText className="h-7 w-7" />,
         roles: ["admin", "auditor"],
       },
       {
         to: "/app/admin/municipalities",
         label: "Municipios",
-        icon: <MapPinned className="h-6 w-6" />,
+        icon: <MapPinned className="h-7 w-7" />,
         roles: ["admin"],
       },
       {
         to: "/app/admin/waste-types",
         label: "Tipos de Residuos",
-        icon: <Recycle className="h-6 w-6" />,
+        icon: <Recycle className="h-7 w-7" />,
         roles: ["admin"],
       },
       {
         to: "/app/admin/transport-fleet",
         label: "Flota",
-        icon: <Truck className="h-6 w-6" />,
+        icon: <Truck className="h-7 w-7" />,
         roles: ["admin"],
       },
       {
         to: "/app/settings",
         label: "Configuración",
-        icon: <Settings className="h-6 w-6" />,
+        icon: <Settings className="h-7 w-7" />,
         roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/assistant",
         label: "Asistente IA",
-        icon: <MessageSquareText className="h-6 w-6" />,
+        icon: <MessageSquareText className="h-7 w-7" />,
         roles: ["admin", "operador", "auditor"],
       },
     ],
@@ -182,7 +182,7 @@ export function Sidebar() {
           onClick={toggleSidebar}
           aria-label={collapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
         >
-          {collapsed ? <PanelLeftOpen className="h-6 w-6" /> : <PanelLeftClose className="h-6 w-6" />}
+          {collapsed ? <PanelLeftOpen className="h-7 w-7" /> : <PanelLeftClose className="h-7 w-7" />}
         </button>
       </div>
 
@@ -221,7 +221,7 @@ export function Sidebar() {
                       whileTap={isAllowed ? { scale: 0.99 } : {}}
                       transition={{ duration: 0.14 }}
                       className={cn(
-                        "relative flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-sm",
+                        "relative flex items-center gap-3.5 rounded-xl px-3 py-3 text-[15px]",
                         isActive ? "text-emerald-900 dark:text-emerald-100" : null,
                         isAllowed
                           ? "text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
@@ -253,7 +253,7 @@ export function Sidebar() {
                       {collapsed ? null : (
                         <div className="relative flex min-w-0 items-center gap-2">
                           <span className="truncate">{item.label}</span>
-                          {isAllowed ? null : <Lock className="h-4 w-4 shrink-0 opacity-70" />}
+                          {isAllowed ? null : <Lock className="h-5 w-5 shrink-0 opacity-70" />}
                         </div>
                       )}
                     </motion.div>
