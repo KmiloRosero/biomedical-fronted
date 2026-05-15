@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { useUiStore } from "@/core/stores/useUiStore";
 import { useAiAssistantStore } from "@/features/aiAssistant/stores/useAiAssistantStore";
 import { useRoleStore, type AppRole } from "@/core/stores/useRoleStore";
+import { isDemoMode } from "@/core/config/flags";
 
 type SidebarItem = {
   to: string;
@@ -41,6 +42,7 @@ export function Sidebar() {
   const closeMobileSidebar = useUiStore((s) => s.closeMobileSidebar);
   const openAssistant = useAiAssistantStore((s) => s.open);
   const role = useRoleStore((s) => s.role);
+  const rbacEnabled = useRoleStore((s) => s.rbacEnabled);
   const navigate = useNavigate();
 
   const items = useMemo<SidebarItem[]>(
@@ -163,7 +165,7 @@ export function Sidebar() {
       <nav className="px-2">
         <ul className="space-y-1">
           {items.map((item) => {
-            const isAllowed = !item.roles || item.roles.includes(role);
+            const isAllowed = isDemoMode() || !rbacEnabled || !item.roles || item.roles.includes(role);
             return (
             <li key={item.to}>
               <NavLink

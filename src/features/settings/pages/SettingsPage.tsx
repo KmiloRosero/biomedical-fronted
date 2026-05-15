@@ -19,6 +19,8 @@ const profileService = new AdminProfileService();
 export function SettingsPage() {
   const role = useRoleStore((s) => s.role);
   const setRole = useRoleStore((s) => s.setRole);
+  const rbacEnabled = useRoleStore((s) => s.rbacEnabled);
+  const setRbacEnabled = useRoleStore((s) => s.setRbacEnabled);
   const importInputId = useMemo(() => `demo-import-${Math.random().toString(16).slice(2)}`, []);
 
   const defaultProfile = useMemo<AdminProfile>(() => {
@@ -276,6 +278,16 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            <label className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-900/5 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+              <span className="text-sm text-slate-700 dark:text-white/80">Restringir por rol</span>
+              <input
+                type="checkbox"
+                checked={rbacEnabled}
+                onChange={(e) => setRbacEnabled(e.target.checked)}
+                className="h-5 w-5 accent-emerald-500"
+              />
+            </label>
 
             <label className="block">
               <span className="mb-1 block text-sm text-slate-700 dark:text-white/80">Rol actual</span>

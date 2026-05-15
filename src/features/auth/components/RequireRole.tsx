@@ -1,7 +1,8 @@
 import type { PropsWithChildren } from "react";
 import type { AppRole } from "@/core/stores/useRoleStore";
 import { Navigate } from "react-router-dom";
-import { useRoleStore } from "@/core/stores/useRoleStore";
+import { isRbacEnabled, useRoleStore } from "@/core/stores/useRoleStore";
+import { isDemoMode } from "@/core/config/flags";
 
 export function RequireRole({
   allowed,
@@ -9,10 +10,13 @@ export function RequireRole({
 }: PropsWithChildren<{ allowed: AppRole[] }>) {
   const role = useRoleStore((s) => s.role);
 
+  if (isDemoMode() || !isRbacEnabled()) {
+    return <>{children}</>;
+  }
+
   if (allowed.includes(role)) {
     return <>{children}</>;
   }
 
   return <Navigate to="/app/forbidden" replace />;
 }
-
