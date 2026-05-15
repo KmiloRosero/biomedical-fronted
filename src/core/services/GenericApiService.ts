@@ -20,7 +20,35 @@ export class GenericApiService<TRecord extends { id: EntityId }> {
     if (!isDemoMode()) return;
     
     const existing = localStorage.getItem(this.storageKey);
-    if (!existing || JSON.parse(existing).length === 0) {
+    if (!existing) {
+      localStorage.setItem(this.storageKey, JSON.stringify(initialData));
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(existing) as TRecord[];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        localStorage.setItem(this.storageKey, JSON.stringify(initialData));
+        return;
+      }
+
+      const map = new Map<EntityId, TRecord>();
+      for (const item of parsed) {
+        map.set(item.id, item);
+      }
+
+      let changed = false;
+      for (const item of initialData) {
+        if (!map.has(item.id)) {
+          map.set(item.id, item);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        localStorage.setItem(this.storageKey, JSON.stringify(Array.from(map.values())));
+      }
+    } catch {
       localStorage.setItem(this.storageKey, JSON.stringify(initialData));
     }
   }

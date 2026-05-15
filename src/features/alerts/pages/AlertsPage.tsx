@@ -29,7 +29,34 @@ function getStoredAlerts(): Alert[] {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(systemAlerts));
     return systemAlerts;
   }
-  return JSON.parse(stored);
+
+  try {
+    const parsed = JSON.parse(stored) as Alert[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(systemAlerts));
+      return systemAlerts;
+    }
+
+    const map = new Map<string, Alert>();
+    for (const a of parsed) {
+      map.set(a.id, a);
+    }
+    let changed = false;
+    for (const a of systemAlerts) {
+      if (!map.has(a.id)) {
+        map.set(a.id, a);
+        changed = true;
+      }
+    }
+    const next = Array.from(map.values());
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }
+    return next;
+  } catch {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(systemAlerts));
+    return systemAlerts;
+  }
 }
 
 function saveAlerts(alerts: Alert[]) {

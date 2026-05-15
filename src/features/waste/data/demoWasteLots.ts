@@ -11,7 +11,7 @@ export interface WasteLot {
 }
 
 // Generar 50 lotes de residuos demo distribuidos por los municipios de Nariño
-export const wasteLots: WasteLot[] = [
+const baseWasteLots: WasteLot[] = [
   // Pasto (municipio principal) - muchos lotes
   { id: "lot-001", municipio_id: "mun-001", tipo_residuo_id: "res-001", cantidad_kg: 150.5, estado: "generado", fecha_generacion: "2026-05-10", fecha_vencimiento: "2026-05-17", institucion: "Hospital Universitario de Pasto", isActive: true },
   { id: "lot-002", municipio_id: "mun-001", tipo_residuo_id: "res-002", cantidad_kg: 45.2, estado: "en ruta", fecha_generacion: "2026-05-12", fecha_vencimiento: "2026-05-17", institucion: "Clínica del Sur", isActive: true },
@@ -84,3 +84,56 @@ export const wasteLots: WasteLot[] = [
   { id: "lot-049", municipio_id: "mun-045", tipo_residuo_id: "res-001", cantidad_kg: 28.9, estado: "generado", fecha_generacion: "2026-05-14", fecha_vencimiento: "2026-05-21", institucion: "Centro de Salud Sibundoy", isActive: true },
   { id: "lot-050", municipio_id: "mun-001", tipo_residuo_id: "res-001", cantidad_kg: 210.0, estado: "en ruta", fecha_generacion: "2026-05-13", fecha_vencimiento: "2026-05-20", institucion: "Gran Clínica de Pasto", isActive: true },
 ];
+
+function pad3(n: number) {
+  return String(n).padStart(3, "0");
+}
+
+function toIsoDate(d: Date) {
+  return d.toISOString().split("T")[0]!;
+}
+
+function addDaysIso(iso: string, days: number) {
+  const [y, m, d] = iso.split("-").map((v) => Number(v));
+  const dt = new Date(Date.UTC(y!, (m! - 1), d! + days));
+  return toIsoDate(dt);
+}
+
+const generatedWasteLots: WasteLot[] = Array.from({ length: 80 }, (_, index) => {
+  const i = index + 51;
+  const municipio = ((i * 7) % 64) + 1;
+  const tipo = ((i * 5) % 15) + 1;
+  const municipio_id = `mun-${pad3(municipio)}`;
+  const tipo_residuo_id = `res-${pad3(tipo)}`;
+
+  const estado = i % 9 === 0 ? "tratado" : i % 3 === 0 ? "en ruta" : "generado";
+  const cantidad_kg = Math.round((18 + (i % 17) * 6.7 + (municipio % 7) * 3.4) * 10) / 10;
+
+  const base = new Date(Date.UTC(2026, 4, 1));
+  const fecha_generacion = toIsoDate(new Date(base.getTime() + (i % 28) * 24 * 60 * 60 * 1000));
+  const vencimiento = tipo === 5 || tipo === 8 || tipo === 15 ? 2 : tipo === 3 || tipo === 11 ? 3 : 7;
+  const fecha_vencimiento = addDaysIso(fecha_generacion, vencimiento);
+
+  const institucion =
+    municipio_id === "mun-001"
+      ? `ESE Pasto - Sede ${((i % 5) + 1)}`
+      : municipio_id === "mun-011"
+        ? `Hospital Ipiales - Área ${((i % 4) + 1)}`
+        : municipio_id === "mun-031"
+          ? `ESE Tumaco - Unidad ${((i % 3) + 1)}`
+          : `Centro de Salud ${municipio_id.toUpperCase()}`;
+
+  return {
+    id: `lot-${pad3(i)}`,
+    municipio_id,
+    tipo_residuo_id,
+    cantidad_kg,
+    estado,
+    fecha_generacion,
+    fecha_vencimiento,
+    institucion,
+    isActive: true,
+  };
+});
+
+export const wasteLots: WasteLot[] = [...baseWasteLots, ...generatedWasteLots];

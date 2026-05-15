@@ -1,7 +1,25 @@
 import { isDemoMode } from "@/core/config/flags";
-import { wasteLots } from "@/features/waste/data/demoWasteLots";
-import { systemAlerts } from "@/features/alerts/data/demoAlerts";
-import { departmentalRoutes } from "@/features/routes/data/demoDepartmentalRoutes";
+
+type DemoWasteLot = {
+  cantidad_kg: number;
+  estado: string;
+  fecha_generacion: string;
+  tipo_residuo_id: string;
+};
+
+type DemoFleet = {
+  estado: string;
+  isActive: boolean;
+};
+
+type DemoRoute = {
+  isActive: boolean;
+};
+
+type DemoAlert = {
+  nivel: string;
+  resuelta: boolean;
+};
 
 export type MonthlyGenerationItem = {
   month: string;
@@ -24,10 +42,13 @@ export type DashboardSummary = {
 function calculateCollectedToday(): number {
   if (!isDemoMode()) return 1240;
   
-  const today = new Date().toISOString().split('T')[0]!;
-  const collectedToday = wasteLots
-    .filter(w => w.estado === "tratado" && w.fecha_generacion >= today)
-    .reduce((sum, w) => sum + w.cantidad_kg, 0);
+  const wasteLots = readDemo<DemoWasteLot[]>("demo_waste-lots", []);
+  const today = new Date().toISOString().split("T")[0]!;
+  const todays = wasteLots.filter((w) => w.fecha_generacion === today);
+
+  const collectedToday = (todays.length ? todays : wasteLots)
+    .filter((w) => w.estado === "tratado" || w.estado === "en ruta")
+    .reduce((sum, w) => sum + (Number(w.cantidad_kg) || 0), 0);
   
   return Math.round(collectedToday || 1240);
 }
@@ -35,13 +56,107 @@ function calculateCollectedToday(): number {
 function calculateCriticalAlerts(): number {
   if (!isDemoMode()) return 3;
   
-  return systemAlerts.filter(a => a.nivel === "critical" && !a.resuelta).length;
+  const alerts = readDemo<DemoAlert[]>("demo_system-alerts", []);
+  return alerts.filter((a) => a.nivel === "critical" && !a.resuelta).length;
 }
 
 function calculatePendingOrders(): number {
   if (!isDemoMode()) return 14;
   
-  return wasteLots.filter(w => w.estado === "generado").length;
+  const wasteLots = readDemo<DemoWasteLot[]>("demo_waste-lots", []);
+  return wasteLots.filter((w) => w.estado === "generado").length;
+}
+
+function calculateVehiclesOnRoute(): number {
+  if (!isDemoMode()) return 8;
+  const fleets = readDemo<DemoFleet[]>("demo_transport-fleet", []);
+  const count = fleets.filter((f) => f.isActive !== false && String(f.estado).toLowerCase() === "en ruta").length;
+  return count || 8;
+}
+
+function calculateActiveRoutes(): number {
+  if (!isDemoMode()) return 8;
+  const routes = readDemo<DemoRoute[]>("demo_departmental-routes", []);
+  const count = routes.filter((r) => r.isActive).length;
+  return count || 8;
+}
+
+function calculateMonthlyGeneration(): MonthlyGenerationItem[] {
+  const labels = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  if (!isDemoMode()) {
+    return labels.map((month, i) => ({ month, kilograms: 8200 + i * 350 }));
+  }
+
+  const lots = readDemo<DemoWasteLot[]>("demo_waste-lots", []);
+  const byMonth = new Array<number>(12).fill(0);
+  for (const lot of lots) {
+    const iso = String(lot.fecha_generacion || "");
+    const parts = iso.split("-");
+    if (parts.length < 2) continue;
+    const monthIndex = Number(parts[1]) - 1;
+    if (monthIndex < 0 || monthIndex > 11) continue;
+    byMonth[monthIndex] = (byMonth[monthIndex] ?? 0) + (Number(lot.cantidad_kg) || 0);
+  }
+
+  const total = byMonth.reduce((s, v) => s + v, 0);
+  if (total === 0) {
+    return labels.map((month, i) => ({ month, kilograms: 7800 + i * 420 }));
+  }
+
+  return labels.map((month, i) => ({ month, kilograms: Math.round(byMonth[i] || 0) }));
+}
+
+function calculateWasteTypeDistribution(): WasteTypeDistributionItem[] {
+  if (!isDemoMode()) {
+    return [
+      { type: "INFECTIOUS", kilograms: 5200 },
+      { type: "CHEMICAL", kilograms: 2100 },
+      { type: "SHARPS", kilograms: 1700 },
+    ];
+  }
+
+  const lots = readDemo<DemoWasteLot[]>("demo_waste-lots", []);
+  const infectiousIds = new Set(["res-001", "res-003", "res-004", "res-011", "res-015"]);
+  const chemicalIds = new Set(["res-005", "res-007", "res-009", "res-012"]);
+  const sharpsIds = new Set(["res-002"]);
+
+  let infectious = 0;
+  let chemical = 0;
+  let sharps = 0;
+  for (const lot of lots) {
+    const kg = Number(lot.cantidad_kg) || 0;
+    const id = String(lot.tipo_residuo_id);
+    if (sharpsIds.has(id)) {
+      sharps += kg;
+      continue;
+    }
+    if (chemicalIds.has(id)) {
+      chemical += kg;
+      continue;
+    }
+    if (infectiousIds.has(id)) {
+      infectious += kg;
+      continue;
+    }
+    infectious += kg;
+  }
+
+  return [
+    { type: "INFECTIOUS", kilograms: Math.round(infectious || 5200) },
+    { type: "CHEMICAL", kilograms: Math.round(chemical || 2100) },
+    { type: "SHARPS", kilograms: Math.round(sharps || 1700) },
+  ];
+}
+
+function readDemo<T>(key: string, fallback: T): T {
+  if (!isDemoMode()) return fallback;
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 export class MetricsService {
@@ -52,50 +167,25 @@ export class MetricsService {
 
   public async getActiveRoutes(): Promise<number> {
     await this.delay(260);
-    return departmentalRoutes.filter(r => r.isActive).length;
+    return calculateActiveRoutes();
   }
 
   public async getMonthlyGeneration(): Promise<MonthlyGenerationItem[]> {
     await this.delay(420);
-    return [
-      { month: "Ene", kilograms: 8200 },
-      { month: "Feb", kilograms: 7800 },
-      { month: "Mar", kilograms: 9100 },
-      { month: "Abr", kilograms: 8600 },
-      { month: "May", kilograms: calculateCollectedToday() * 30 }, // Total mensual estimado
-      { month: "Jun", kilograms: 9900 },
-      { month: "Jul", kilograms: 10150 },
-      { month: "Ago", kilograms: 9700 },
-      { month: "Sep", kilograms: 10400 },
-      { month: "Oct", kilograms: 11250 },
-      { month: "Nov", kilograms: 10900 },
-      { month: "Dic", kilograms: 11850 },
-    ];
+    return calculateMonthlyGeneration();
   }
 
   public async getWasteTypeDistribution(): Promise<WasteTypeDistributionItem[]> {
     await this.delay(320);
-    // Calcular distribución real desde datos demo
-    const biosanitarios = wasteLots.filter(w => w.tipo_residuo_id.includes("res-001")).reduce((s, w) => s + w.cantidad_kg, 0);
-    const químicos = wasteLots.filter(w => w.tipo_residuo_id.includes("res-005") || w.tipo_residuo_id.includes("res-007")).reduce((s, w) => s + w.cantidad_kg, 0);
-    const cortopunzantes = wasteLots.filter(w => w.tipo_residuo_id.includes("res-002")).reduce((s, w) => s + w.cantidad_kg, 0);
-    
-    return [
-      { type: "INFECTIOUS", kilograms: Math.round(biosanitarios || 5200) },
-      { type: "CHEMICAL", kilograms: Math.round(químicos || 2100) },
-      { type: "SHARPS", kilograms: Math.round(cortopunzantes || 1700) },
-    ];
+    return calculateWasteTypeDistribution();
   }
 
   public async getDashboardSummary(): Promise<DashboardSummary> {
-    const [collectedTodayKg, vehiclesOnRoute] = await Promise.all([
-      this.getTotalWastes(),
-      this.getActiveRoutes(),
-    ]);
+    const [collectedTodayKg, activeRoutes] = await Promise.all([this.getTotalWastes(), this.getActiveRoutes()]);
     await this.delay(180);
     return {
       collectedTodayKg,
-      vehiclesOnRoute,
+      vehiclesOnRoute: calculateVehiclesOnRoute() || activeRoutes,
       criticalAlerts: calculateCriticalAlerts(),
       pendingOrders: calculatePendingOrders(),
     };
