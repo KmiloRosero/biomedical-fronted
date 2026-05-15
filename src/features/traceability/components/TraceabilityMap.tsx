@@ -16,6 +16,7 @@ export type TraceabilityMapProps = {
   onMilestone: (stageId: WasteStageId) => void;
   onCompleted: () => void;
   customPoints?: Array<{ id: WasteStageId; label: string; position: LatLngExpression }>;
+  waypoints?: Array<{ label: string; position: LatLngExpression }>;
 };
 
 type AnimationCallbacks = {
@@ -76,7 +77,14 @@ class RouteAnimator {
   }
 }
 
-export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompleted, customPoints }: TraceabilityMapProps) {
+export function TraceabilityMap({
+  isTracking,
+  animationKey,
+  onMilestone,
+  onCompleted,
+  customPoints,
+  waypoints,
+}: TraceabilityMapProps) {
   const points = useMemo<TracePoint[]>(() => {
     if (customPoints?.length) {
       return customPoints.map((p) => ({ id: p.id, label: p.label, position: p.position }));
@@ -90,8 +98,11 @@ export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompl
   }, [customPoints]);
 
   const route = useMemo<Array<[number, number]>>(() => {
+    if (waypoints?.length) {
+      return waypoints.map((w) => asTuple(w.position));
+    }
     return points.map((p) => asTuple(p.position));
-  }, [points]);
+  }, [points, waypoints]);
 
   const [truckPos, setTruckPos] = useState<LatLngExpression>(points[0]!.position);
   const animatorRef = useRef<RouteAnimator | null>(null);
@@ -113,6 +124,10 @@ export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompl
   useEffect(() => {
     if (!isTracking) {
       animatorRef.current?.stop();
+      return;
+    }
+
+    if (route.length < 2) {
       return;
     }
 
@@ -153,6 +168,12 @@ export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompl
           pathOptions={{ color: "#10b981", weight: 5, opacity: 0.85 }}
         />
 
+        {waypoints?.length
+          ? waypoints.map((w, idx) => (
+              <Marker key={`${idx}-${w.label}`} position={w.position} icon={createPointIcon(w.label)} />
+            ))
+          : null}
+
         {points.map((p) => (
           <Marker
             key={p.id}
@@ -164,6 +185,8 @@ export function TraceabilityMap({ isTracking, animationKey, onMilestone, onCompl
         <Marker position={truckPos} icon={truckIcon} />
 
         <FollowTruck position={truckPos} />
+
+        <FitRoute route={route} />
       </MapContainer>
     </div>
   );
@@ -174,6 +197,18 @@ function FollowTruck({ position }: { position: LatLngExpression }) {
   useEffect(() => {
     map.panTo(position, { animate: true, duration: 0.25 });
   }, [map, position]);
+  return null;
+}
+
+function FitRoute({ route }: { route: Array<[number, number]> }) {
+  const map = useMap();
+  useEffect(() => {
+    if (route.length < 2) {
+      return;
+    }
+    const bounds = L.latLngBounds(route.map((t) => L.latLng(t[0], t[1])));
+    map.fitBounds(bounds, { padding: [18, 18], animate: true });
+  }, [map, route]);
   return null;
 }
 

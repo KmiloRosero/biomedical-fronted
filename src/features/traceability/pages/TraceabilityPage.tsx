@@ -1,9 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, CheckCircle2, Factory, Hospital, MapPin, PackageOpen, Truck } from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  CirclePlus,
+  Factory,
+  Hospital,
+  MapPin,
+  PackageOpen,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  Truck,
+} from "lucide-react";
 import { Button } from "@/shared/ui/Button";
+import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { Skeleton } from "@/shared/ui/Skeleton";
+import { JsonEditor } from "@/shared/ui/JsonEditor";
+import { JsonViewer } from "@/shared/ui/JsonViewer";
 import type { WasteStage, WasteStageEvent, WasteStageId, WasteStageStatus } from "../models/WasteStage";
 import { WasteTimeline, type WasteTimelineItem } from "../components/WasteTimeline";
 import { TraceabilityMap } from "../components/TraceabilityMap";
@@ -36,6 +54,13 @@ export function TraceabilityPage() {
   const [isLoadingStops, setIsLoadingStops] = useState(false);
   const routesService = useMemo(() => new RoutesService(), []);
 
+  const [isCreateRouteOpen, setIsCreateRouteOpen] = useState(false);
+  const [isCreateStopOpen, setIsCreateStopOpen] = useState(false);
+  const [editRoute, setEditRoute] = useState<BackendRoute | null>(null);
+  const [editStop, setEditStop] = useState<BackendStop | null>(null);
+  const [viewJson, setViewJson] = useState<unknown | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [stageState, setStageState] = useState<StageState>({
     currentIndex: 0,
     events: {},
@@ -49,9 +74,11 @@ export function TraceabilityPage() {
         const list = await routesService.getRoutes();
         if (!mounted) return;
         setRoutes(list);
-        const firstId = list[0] ? String(extractRouteId(list[0]) ?? "") : "";
-        if (firstId) {
-          setSelectedRouteId(firstId);
+        if (!selectedRouteId) {
+          const firstId = list[0] ? String(extractRouteId(list[0]) ?? "") : "";
+          if (firstId) {
+            setSelectedRouteId(firstId);
+          }
         }
       } finally {
         if (!mounted) return;
@@ -62,7 +89,7 @@ export function TraceabilityPage() {
     return () => {
       mounted = false;
     };
-  }, [routesService]);
+  }, [routesService, selectedRouteId]);
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +137,12 @@ export function TraceabilityPage() {
       { id: "TREATMENT" as const, label: "Planta de Tratamiento", position: third.pos },
       { id: "DISPOSAL" as const, label: "Disposición Final", position: last.pos },
     ];
+  }, [stops]);
+
+  const mapWaypoints = useMemo(() => {
+    return stops
+      .map((s) => ({ stop: s, pos: extractLatLng(s), label: extractStopLabel(s) }))
+      .filter((x): x is { stop: BackendStop; pos: LatLngExpression; label: string } => Boolean(x.pos));
   }, [stops]);
 
   const timelineItems = useMemo<WasteTimelineItem[]>(() => {
@@ -177,6 +210,175 @@ export function TraceabilityPage() {
     setAnimationKey((k) => k + 1);
   }
 
+  async function refreshRoutes() {
+    setIsLoadingRoutes(true);
+    try {
+      const list = await routesService.getRoutes();
+      setRoutes(list);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar rutas.");
+    } finally {
+      setIsLoadingRoutes(false);
+    }
+  }
+
+  async function refreshStops() {
+    if (!selectedRouteId) {
+      setStops([]);
+      return;
+    }
+    setIsLoadingStops(true);
+    try {
+      const list = await routesService.getStops(selectedRouteId);
+      setStops(list);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar paradas.");
+    } finally {
+      setIsLoadingStops(false);
+    }
+  }
+
+  async function refreshAll() {
+    await refreshRoutes();
+    await refreshStops();
+  }
+
+  async function createRoute(payload: unknown) {
+    setIsSubmitting(true);
+    try {
+      const created = await routesService.createRoute(payload);
+      toast.success("Ruta creada.");
+      setIsCreateRouteOpen(false);
+      await refreshRoutes();
+      const id = extractRouteId(created);
+      if (id) {
+        setSelectedRouteId(String(id));
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo crear la ruta.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function updateRoute(payload: unknown) {
+    if (!editRoute) return;
+    const id = extractRouteId(editRoute);
+    if (!id) {
+      toast.error("No se pudo detectar el ID de la ruta.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await routesService.updateRoute(String(id), payload);
+      toast.success("Ruta actualizada.");
+      setEditRoute(null);
+      await refreshRoutes();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo actualizar la ruta.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function removeRoute() {
+    if (!selectedRouteId) return;
+    setIsSubmitting(true);
+    try {
+      await routesService.deleteRoute(selectedRouteId);
+      toast.success("Ruta eliminada.");
+      setSelectedRouteId("");
+      setStops([]);
+      await refreshRoutes();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar la ruta.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function createStop(payload: unknown) {
+    if (!selectedRouteId) {
+      toast.error("Selecciona una ruta primero.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await routesService.createStop(selectedRouteId, payload);
+      toast.success("Parada creada.");
+      setIsCreateStopOpen(false);
+      await refreshStops();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo crear la parada.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function updateStop(payload: unknown) {
+    if (!selectedRouteId || !editStop) return;
+    const id = extractStopId(editStop);
+    if (!id) {
+      toast.error("No se pudo detectar el ID de la parada.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await routesService.updateStop(selectedRouteId, String(id), payload);
+      toast.success("Parada actualizada.");
+      setEditStop(null);
+      await refreshStops();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo actualizar la parada.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function removeStop(stop: BackendStop) {
+    if (!selectedRouteId) return;
+    const id = extractStopId(stop);
+    if (!id) {
+      toast.error("No se pudo detectar el ID de la parada.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await routesService.deleteStop(selectedRouteId, String(id));
+      toast.success("Parada eliminada.");
+      await refreshStops();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar la parada.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function moveStop(index: number, direction: -1 | 1) {
+    if (!selectedRouteId) return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= stops.length) return;
+
+    const copy = stops.slice();
+    const tmp = copy[index]!;
+    copy[index] = copy[nextIndex]!;
+    copy[nextIndex] = tmp;
+    setStops(copy);
+
+    const ids = copy
+      .map((s) => extractStopId(s))
+      .filter((x): x is string | number => x !== null && x !== undefined)
+      .map((x) => String(x));
+    if (ids.length !== copy.length) {
+      return;
+    }
+    try {
+      await routesService.reorderStops(selectedRouteId, ids);
+    } catch {
+      toast("Orden actualizado solo en la vista (backend no soporta reorder).", { icon: "ℹ️" });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
@@ -187,30 +389,12 @@ export function TraceabilityPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-slate-700 dark:text-white/70">Ruta</div>
-            {isLoadingRoutes ? (
-              <Skeleton className="h-10 w-44" />
-            ) : (
-              <select
-                value={selectedRouteId}
-                onChange={(e) => setSelectedRouteId(e.target.value)}
-                className="h-10 rounded-xl border border-slate-300/80 bg-white px-3 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-              >
-                {routes.map((r, idx) => {
-                  const id = extractRouteId(r);
-                  const label = extractRouteLabel(r, idx);
-                  return (
-                    <option key={String(id ?? idx)} value={String(id ?? "")}>
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-          </div>
+          <Button type="button" variant="secondary" onClick={() => void refreshAll()} disabled={isLoadingRoutes || isLoadingStops}>
+            <RefreshCw className="h-4 w-4" />
+            Actualizar
+          </Button>
 
-          <Button type="button" onClick={startTracking} isLoading={isTracking} disabled={isTracking}>
+          <Button type="button" onClick={startTracking} isLoading={isTracking} disabled={isTracking || !selectedRouteId}>
             <Activity className="h-4 w-4" />
             {isTracking ? "Rastreando..." : "Iniciar Rastreo"}
           </Button>
@@ -220,42 +404,212 @@ export function TraceabilityPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
           <Surface className="p-4 sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-base font-semibold">WasteTimeline</div>
-                <div className="text-sm text-slate-700 dark:text-white/60">Estados del lote y marcas de tiempo</div>
+                <div className="text-base font-semibold">Rutas</div>
+                <div className="mt-1 text-sm text-slate-700 dark:text-white/60">Selecciona una ruta o crea una nueva.</div>
               </div>
-              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/70 bg-slate-900/5 px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
-                <PackageOpen className="h-4 w-4" />
-                Lote: DEMO-001
-              </div>
+              <Button type="button" onClick={() => setIsCreateRouteOpen(true)}>
+                <CirclePlus className="h-4 w-4" />
+                Nueva
+              </Button>
             </div>
 
-            <WasteTimeline items={timelineItems} />
+            <div className="mt-4">
+              {isLoadingRoutes ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
+                <select
+                  value={selectedRouteId}
+                  onChange={(e) => setSelectedRouteId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-300/80 bg-white px-3 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                >
+                  <option value="">Selecciona una ruta…</option>
+                  {routes.map((r, idx) => {
+                    const id = extractRouteId(r);
+                    const label = extractRouteLabel(r, idx);
+                    return (
+                      <option key={String(id ?? idx)} value={String(id ?? "")}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  const route = routes.find((r) => String(extractRouteId(r) ?? "") === selectedRouteId) ?? null;
+                  setEditRoute(route);
+                }}
+                disabled={!selectedRouteId}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setViewJson(routes.find((r) => String(extractRouteId(r) ?? "") === selectedRouteId) ?? null)}
+                disabled={!selectedRouteId}
+              >
+                Ver JSON
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => void removeRoute()} disabled={!selectedRouteId || isSubmitting}>
+                <Trash2 className="h-4 w-4" />
+                Eliminar
+              </Button>
+            </div>
+
+            <div className="mt-6 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold">Paradas</div>
+                <div className="mt-1 text-sm text-slate-700 dark:text-white/60">Ordena y edita los puntos de la ruta.</div>
+              </div>
+              <Button type="button" onClick={() => setIsCreateStopOpen(true)} disabled={!selectedRouteId}>
+                <CirclePlus className="h-4 w-4" />
+                Agregar
+              </Button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {isLoadingStops ? (
+                Array.from({ length: 6 }).map((_, i) => <Skeleton key={`sk-stop-${i}`} className="h-12 w-full" />)
+              ) : stops.length ? (
+                stops.map((s, idx) => (
+                  <div
+                    key={String(extractStopId(s) ?? idx)}
+                    className="rounded-2xl border border-slate-200/70 bg-slate-900/5 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold">{extractStopLabel(s) || `Parada ${idx + 1}`}</div>
+                        <div className="mt-1 text-xs text-slate-700 dark:text-white/60">{formatLatLng(s)}</div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                          onClick={() => void moveStop(idx, -1)}
+                          aria-label="Subir"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                          onClick={() => void moveStop(idx, 1)}
+                          aria-label="Bajar"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                          onClick={() => setEditStop(s)}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl p-2 text-rose-600/90 hover:bg-rose-500/10 dark:text-rose-100/80"
+                          onClick={() => void removeStop(s)}
+                          aria-label="Eliminar"
+                          disabled={isSubmitting}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <Button type="button" variant="secondary" onClick={() => setViewJson(s)}>
+                        Ver JSON
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-700 dark:text-white/70">No hay paradas registradas.</div>
+              )}
+            </div>
           </Surface>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.06 }}>
-          <Surface className="p-4 sm:p-6">
-            <div className="mb-4">
-              <div className="text-base font-semibold">Mapa de Trazabilidad</div>
-              <div className="text-sm text-slate-700 dark:text-white/60">
-                {isLoadingStops ? "Cargando paradas de la ruta..." : "Ruta y camión en tiempo real."}
+        <div className="grid gap-4 lg:col-span-2 lg:grid-cols-2">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+            <Surface className="p-4 sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-base font-semibold">WasteTimeline</div>
+                  <div className="text-sm text-slate-700 dark:text-white/60">Estados del lote y marcas de tiempo</div>
+                </div>
+                <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/70 bg-slate-900/5 px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
+                  <PackageOpen className="h-4 w-4" />
+                  Lote: DEMO-001
+                </div>
               </div>
-            </div>
-            <TraceabilityMap
-              isTracking={isTracking}
-              animationKey={animationKey}
-              onMilestone={handleMilestone}
-              onCompleted={handleCompleted}
-              {...(mapPoints ? { customPoints: mapPoints } : {})}
-            />
-          </Surface>
-        </motion.div>
+              <WasteTimeline items={timelineItems} />
+            </Surface>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.06 }} className="lg:col-span-2">
+            <Surface className="p-4 sm:p-6">
+              <div className="mb-4">
+                <div className="text-base font-semibold">Mapa de Trazabilidad</div>
+                <div className="text-sm text-slate-700 dark:text-white/60">
+                  {isLoadingStops ? "Cargando paradas de la ruta..." : "Ruta y camión en tiempo real."}
+                </div>
+              </div>
+              <TraceabilityMap
+                isTracking={isTracking}
+                animationKey={animationKey}
+                onMilestone={handleMilestone}
+                onCompleted={handleCompleted}
+                {...(mapPoints ? { customPoints: mapPoints } : {})}
+                waypoints={mapWaypoints.map((w) => ({ label: w.label, position: w.pos }))}
+              />
+            </Surface>
+          </motion.div>
+        </div>
       </div>
+
+      <Dialog isOpen={isCreateRouteOpen} title="Nueva ruta" onClose={() => setIsCreateRouteOpen(false)}>
+        <JsonEditor
+          initialValue={{ name: "Ruta", code: `R-${Date.now()}`, status: "ACTIVE" }}
+          onSubmit={createRoute}
+          submitLabel="Crear"
+          isSubmitting={isSubmitting}
+        />
+      </Dialog>
+
+      <Dialog isOpen={Boolean(editRoute)} title="Editar ruta" onClose={() => setEditRoute(null)}>
+        <JsonEditor initialValue={editRoute ?? {}} onSubmit={updateRoute} submitLabel="Guardar" isSubmitting={isSubmitting} />
+      </Dialog>
+
+      <Dialog isOpen={isCreateStopOpen} title="Nueva parada" onClose={() => setIsCreateStopOpen(false)}>
+        <JsonEditor
+          initialValue={{ name: "Parada", lat: 4.65, lng: -74.08, stage: "COLLECTION" }}
+          onSubmit={createStop}
+          submitLabel="Crear"
+          isSubmitting={isSubmitting}
+        />
+      </Dialog>
+
+      <Dialog isOpen={Boolean(editStop)} title="Editar parada" onClose={() => setEditStop(null)}>
+        <JsonEditor initialValue={editStop ?? {}} onSubmit={updateStop} submitLabel="Guardar" isSubmitting={isSubmitting} />
+      </Dialog>
+
+      <Dialog isOpen={Boolean(viewJson)} title="JSON" onClose={() => setViewJson(null)}>
+        <JsonViewer value={viewJson} />
+      </Dialog>
     </div>
   );
 }
@@ -286,6 +640,22 @@ function extractLatLng(stop: BackendStop): LatLngExpression | null {
     return null;
   }
   return [latN, lngN];
+}
+
+function extractStopId(stop: BackendStop): unknown {
+  return stop["id"] ?? stop["stopId"] ?? stop["uuid"] ?? stop["_id"];
+}
+
+function extractStopLabel(stop: BackendStop): string {
+  const name = stop["name"] ?? stop["label"] ?? stop["title"];
+  return name ? String(name) : "";
+}
+
+function formatLatLng(stop: BackendStop): string {
+  const pos = extractLatLng(stop);
+  if (!pos) return "Sin coordenadas";
+  const t = pos as [number, number];
+  return `${t[0].toFixed(5)}, ${t[1].toFixed(5)}`;
 }
 
 function resolveStatus(index: number, currentIndex: number, total: number): WasteStageStatus {
