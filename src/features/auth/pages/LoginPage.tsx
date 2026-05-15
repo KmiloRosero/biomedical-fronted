@@ -20,7 +20,7 @@ import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { useAuthStore } from "../stores/useAuthStore";
-import { isDemoMode } from "@/core/config/flags";
+import { getAuthMode } from "@/core/config/flags";
 
 type LoginForm = {
   email: string;
@@ -57,7 +57,8 @@ export function LoginPage() {
     }
   }, [navigate, status]);
 
-  const demoMode = isDemoMode();
+  const authMode = getAuthMode();
+  const isDemoAuth = authMode === "demo";
 
   useEffect(() => {
     clearError();
@@ -161,31 +162,39 @@ export function LoginPage() {
                   </p>
                 </div>
 
-                <div className="mb-4 space-y-2">
-                  <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("github")}>
-                    <Github className="h-4 w-4" />
-                    Continuar con GitHub
-                  </Button>
-                  <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("facebook")}>
-                    <Facebook className="h-4 w-4" />
-                    Continuar con Facebook
-                  </Button>
-                  <Button
-                    type="button"
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => setIsEmailDialogOpen(true)}
-                  >
-                    <Link2 className="h-4 w-4" />
-                    Enviarme enlace al correo
-                  </Button>
-                </div>
+                {isDemoAuth ? (
+                  <div className="mb-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-900 dark:text-emerald-100">
+                    Acceso demo: usa cualquier correo válido y una contraseña de 6+ caracteres.
+                  </div>
+                ) : (
+                  <div className="mb-4 space-y-2">
+                    <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("github")}>
+                      <Github className="h-4 w-4" />
+                      Continuar con GitHub
+                    </Button>
+                    <Button type="button" className="w-full" variant="secondary" onClick={() => startOAuth("facebook")}>
+                      <Facebook className="h-4 w-4" />
+                      Continuar con Facebook
+                    </Button>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      variant="secondary"
+                      onClick={() => setIsEmailDialogOpen(true)}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Enviarme enlace al correo
+                    </Button>
+                  </div>
+                )}
 
-                <div className="my-4 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
-                  <div className="text-xs text-slate-600 dark:text-white/60">o con correo</div>
-                  <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
-                </div>
+                {isDemoAuth ? null : (
+                  <div className="my-4 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
+                    <div className="text-xs text-slate-600 dark:text-white/60">o con correo</div>
+                    <div className="h-px flex-1 bg-slate-200/70 dark:bg-white/10" />
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <div className="flex gap-2 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-1 dark:border-white/10 dark:bg-white/5">
@@ -246,13 +255,6 @@ export function LoginPage() {
                     <Mail className="h-4 w-4" />
                     {isLoading ? "Validando..." : mode === "signup" ? "Crear cuenta" : "Entrar"}
                   </Button>
-
-                  {demoMode ? (
-                    <Button type="button" className="w-full" variant="secondary" onClick={() => navigate("/app")}
-                    >
-                      Entrar sin iniciar sesión
-                    </Button>
-                  ) : null}
 
                   <div className="grid gap-2 sm:grid-cols-3">
                     <TrustPill label="Mapas" icon={<MapPinned className="h-4 w-4" />} />

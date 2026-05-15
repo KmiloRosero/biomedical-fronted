@@ -1,4 +1,5 @@
 import { SupabaseClientFactory } from "@/core/supabase/supabaseClient";
+import { isDemoAuthMode } from "@/core/config/flags";
 import type { UserProfile } from "../models/UserProfile";
 import type { AuthProviderId } from "../models/AuthProvider";
 
@@ -13,6 +14,21 @@ export class AuthService {
   private readonly supabase = SupabaseClientFactory.getClient();
 
   public async loginWithPassword(email: string, password: string): Promise<AuthSession> {
+    if (isDemoAuthMode()) {
+      if (password.length < 6) {
+        throw new Error("INVALID_LOGIN_CREDENTIALS");
+      }
+      const token = this.createDemoToken(email);
+      const user: UserProfile = {
+        id: crypto.randomUUID(),
+        fullName: "Usuario Demo",
+        email,
+        role: "OPERATOR",
+      };
+      this.setSession({ token, user });
+      return { token, user };
+    }
+
     const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
     if (error) {
       throw error;
@@ -29,6 +45,21 @@ export class AuthService {
   }
 
   public async signUpWithPassword(email: string, password: string): Promise<AuthSession | null> {
+    if (isDemoAuthMode()) {
+      if (password.length < 6) {
+        throw new Error("INVALID_LOGIN_CREDENTIALS");
+      }
+      const token = this.createDemoToken(email);
+      const user: UserProfile = {
+        id: crypto.randomUUID(),
+        fullName: "Usuario Demo",
+        email,
+        role: "OPERATOR",
+      };
+      this.setSession({ token, user });
+      return { token, user };
+    }
+
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { data, error } = await this.supabase.auth.signUp({
       email,
@@ -55,6 +86,18 @@ export class AuthService {
   }
 
   public async requestEmailLogin(email: string): Promise<void> {
+    if (isDemoAuthMode()) {
+      const token = this.createDemoToken(email);
+      const user: UserProfile = {
+        id: crypto.randomUUID(),
+        fullName: "Usuario Demo",
+        email,
+        role: "OPERATOR",
+      };
+      this.setSession({ token, user });
+      return;
+    }
+
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await this.supabase.auth.signInWithOtp({
       email,
@@ -66,6 +109,15 @@ export class AuthService {
   }
 
   public async getSession(): Promise<AuthSession | null> {
+    if (isDemoAuthMode()) {
+      const token = this.getToken();
+      const user = this.getUser();
+      if (!token || !user) {
+        return null;
+      }
+      return { token, user };
+    }
+
     const { data, error } = await this.supabase.auth.getSession();
     if (error) {
       throw error;
@@ -79,6 +131,9 @@ export class AuthService {
   }
 
   public async signInWithOAuth(provider: Extract<AuthProviderId, "github" | "facebook">): Promise<string> {
+    if (isDemoAuthMode()) {
+      throw new Error("UNSUPPORTED_PROVIDER");
+    }
     const redirectTo = `${window.location.origin}/auth/callback`;
     const supabaseProvider = provider === "github" ? "github" : "facebook";
     const { data, error } = await this.supabase.auth.signInWithOAuth({
@@ -95,6 +150,9 @@ export class AuthService {
   }
 
   public async exchangeCodeForSession(code: string): Promise<AuthSession> {
+    if (isDemoAuthMode()) {
+      throw new Error("UNSUPPORTED_PROVIDER");
+    }
     const { data, error } = await this.supabase.auth.exchangeCodeForSession(code);
     if (error) {
       throw error;
@@ -113,7 +171,9 @@ export class AuthService {
   }
 
   public logout(): void {
-    void this.supabase.auth.signOut();
+    if (!isDemoAuthMode()) {
+      void this.supabase.auth.signOut();
+    }
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.userKey);
   }
@@ -142,6 +202,12 @@ export class AuthService {
   private setSession(session: AuthSession): void {
     localStorage.setItem(this.tokenKey, session.token);
     localStorage.setItem(this.userKey, JSON.stringify(session.user));
+  }
+
+  private createDemoToken(email: string): string {
+    const header = btoa(JSON.stringify({ alg: "none", typ: "JWT" }));
+    const payload = btoa(JSON.stringify({ sub: email, iat: Date.now(), mode: "demo" }));
+    return `${header}.${payload}.demo`;
   }
 }
 
