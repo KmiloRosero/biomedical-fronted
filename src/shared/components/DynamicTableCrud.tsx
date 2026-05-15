@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Pencil, Plus, RefreshCcw, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Dialog } from "@/shared/ui/Dialog";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { Skeleton } from "@/shared/ui/Skeleton";
-import type { EntityId, GenericApiService } from "@/core/services/GenericApiService";
+import type { EntityId } from "@/core/services/GenericApiService";
+
+export type CrudApi<TRecord extends { id: EntityId }> = {
+  getAll: (signal?: AbortSignal) => Promise<TRecord[]>;
+  create: (input: Omit<TRecord, "id">) => Promise<TRecord>;
+  update: (id: EntityId, patch: Partial<Omit<TRecord, "id">>) => Promise<TRecord>;
+  delete: (id: EntityId) => Promise<void>;
+};
 
 export type ColumnInputType = "text" | "number" | "boolean" | "date" | "select";
 
@@ -21,30 +29,58 @@ export type DynamicColumnConfig<TRecord> = {
 export type DynamicTableCrudConfig<TRecord extends { id: EntityId }> = {
   tableName: string;
   title: string;
+  subtitle?: string;
   columns: Array<DynamicColumnConfig<TRecord>>;
   pageSize?: number;
+  pageSizeOptions?: number[];
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  searchKeys?: Array<keyof TRecord & string>;
+  filters?: Array<{
+    key: keyof TRecord & string;
+    label: string;
+    options?: string[];
+  }>;
+  enableCreate?: boolean;
+  enableEdit?: boolean;
+  enableDelete?: boolean;
+  details?: {
+    title?: string;
+    render: (row: TRecord) => ReactNode;
+  };
 };
 
 export type DynamicTableCrudProps<TRecord extends { id: EntityId }> = {
   config: DynamicTableCrudConfig<TRecord>;
-  api: GenericApiService<TRecord>;
+  api: CrudApi<TRecord>;
 };
 
 type JsonValue = string | number | boolean | null;
 
 export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api }: DynamicTableCrudProps<TRecord>) {
-  const pageSize = config.pageSize ?? 10;
+  const initialPageSize = config.pageSize ?? 10;
+  const pageSizeOptions = config.pageSizeOptions ?? [10, 20, 50, 100];
   const visibleColumns = useMemo(() => config.columns.filter((c) => !c.hidden), [config.columns]);
+  const enableCreate = config.enableCreate !== false;
+  const enableEdit = config.enableEdit !== false;
+  const enableDelete = config.enableDelete !== false;
+  const showActionsColumn = enableEdit || enableDelete;
 
   const [rows, setRows] = useState<TRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [searchText, setSearchText] = useState("");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(Object.create(null) as Record<string, string>);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<TRecord | null>(null);
   const [formValues, setFormValues] = useState<Record<string, JsonValue>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsRow, setDetailsRow] = useState<TRecord | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -71,11 +107,78 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
     return () => abortRef.current?.abort();
   }, [reload, config.tableName]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(rows.length / pageSize)), [rows.length, pageSize]);
+  useEffect(() => {
+    setPageSize(initialPageSize);
+  }, [initialPageSize, config.tableName]);
+
+  const filterDefs = useMemo(() => config.filters ?? [], [config.filters]);
+  const filterOptions = useMemo(() => {
+    const optionsMap = new Map<string, string[]>();
+    for (const f of filterDefs) {
+      if (f.options && f.options.length > 0) {
+        optionsMap.set(f.key, f.options);
+        continue;
+      }
+      const set = new Set<string>();
+      for (const r of rows) {
+        const raw = (r as Record<string, unknown>)[f.key];
+        const value = raw === null || raw === undefined ? "" : String(raw);
+        if (value.trim()) {
+          set.add(value);
+        }
+      }
+      optionsMap.set(f.key, Array.from(set).sort((a, b) => a.localeCompare(b)));
+    }
+    return optionsMap;
+  }, [filterDefs, rows]);
+
+  const effectiveSearchKeys = useMemo(() => {
+    const keys = config.searchKeys?.length
+      ? config.searchKeys
+      : visibleColumns.map((c) => c.key).filter((k) => k !== "id");
+    return keys;
+  }, [config.searchKeys, visibleColumns]);
+
+  const filteredRows = useMemo(() => {
+    const trimmed = searchText.trim().toLowerCase();
+    const activeFilters = Object.entries(filterValues).filter(([, v]) => Boolean(v));
+
+    return rows.filter((row) => {
+      if (activeFilters.length) {
+        for (const [key, expected] of activeFilters) {
+          const raw = (row as Record<string, unknown>)[key];
+          const value = raw === null || raw === undefined ? "" : String(raw);
+          if (value !== expected) {
+            return false;
+          }
+        }
+      }
+
+      if (!trimmed || config.enableSearch === false) {
+        return true;
+      }
+
+      for (const key of effectiveSearchKeys) {
+        const raw = (row as Record<string, unknown>)[key];
+        if (raw === null || raw === undefined) continue;
+        const value = String(raw).toLowerCase();
+        if (value.includes(trimmed)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [rows, searchText, filterValues, config.enableSearch, effectiveSearchKeys]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredRows.length / pageSize)),
+    [filteredRows.length, pageSize]
+  );
+
   const pagedRows = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [rows, page, pageSize]);
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -83,7 +186,14 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
     }
   }, [page, totalPages]);
 
+  function resetFilters() {
+    setSearchText("");
+    setFilterValues(Object.create(null) as Record<string, string>);
+    setPage(1);
+  }
+
   function openCreateDialog() {
+    if (!enableCreate) return;
     setEditingRow(null);
     const initial: Record<string, JsonValue> = {};
     for (const col of visibleColumns) {
@@ -95,6 +205,7 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
   }
 
   function openEditDialog(row: TRecord) {
+    if (!enableEdit) return;
     setEditingRow(row);
     const initial: Record<string, JsonValue> = {};
     for (const col of visibleColumns) {
@@ -110,6 +221,17 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
     setIsDialogOpen(false);
     setEditingRow(null);
     setFormValues({});
+  }
+
+  function openDetails(row: TRecord) {
+    if (!config.details) return;
+    setDetailsRow(row);
+    setIsDetailsOpen(true);
+  }
+
+  function closeDetails() {
+    setIsDetailsOpen(false);
+    setDetailsRow(null);
   }
 
   async function handleSave() {
@@ -133,6 +255,7 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
   }
 
   async function handleDelete(row: TRecord) {
+    if (!enableDelete) return;
     const confirmed = window.confirm("¿Eliminar este registro?");
     if (!confirmed) {
       return;
@@ -151,19 +274,95 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-xl font-semibold">{config.title}</h2>
-          <p className="mt-1 text-sm text-slate-700 dark:text-white/70">Tabla: {config.tableName}</p>
+          <p className="mt-1 text-sm text-slate-700 dark:text-white/70">
+            {config.subtitle ?? `Tabla: ${config.tableName}`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="secondary" onClick={reload} isLoading={isLoading}>
             <RefreshCcw className="h-4 w-4" />
             Recargar
           </Button>
-          <Button type="button" onClick={openCreateDialog}>
-            <Plus className="h-4 w-4" />
-            Nuevo
-          </Button>
+          {enableCreate ? (
+            <Button type="button" onClick={openCreateDialog}>
+              <Plus className="h-4 w-4" />
+              Nuevo
+            </Button>
+          ) : null}
         </div>
       </div>
+
+      {config.enableSearch === false && filterDefs.length === 0 ? null : (
+        <Surface className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end">
+              {config.enableSearch === false ? null : (
+                <div className="w-full sm:max-w-[420px]">
+                  <label className="text-sm font-medium text-slate-700 dark:text-white/80">
+                    Búsqueda
+                  </label>
+                  <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-white/20 dark:bg-slate-800">
+                    <Search className="h-4 w-4 text-slate-500 dark:text-white/50" />
+                    <input
+                      value={searchText}
+                      onChange={(e) => {
+                        setSearchText(e.target.value);
+                        setPage(1);
+                      }}
+                      placeholder={config.searchPlaceholder ?? "Busca por cualquier campo..."}
+                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-500 dark:text-white dark:placeholder:text-white/40"
+                    />
+                    {searchText ? (
+                      <button
+                        type="button"
+                        className="rounded-lg p-1 text-slate-700 hover:bg-slate-900/5 dark:text-white/70 dark:hover:bg-white/10"
+                        onClick={() => {
+                          setSearchText("");
+                          setPage(1);
+                        }}
+                        aria-label="Limpiar búsqueda"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {filterDefs.map((f) => (
+                <div key={f.key} className="w-full sm:max-w-[320px]">
+                  <label className="text-sm font-medium text-slate-700 dark:text-white/80">{f.label}</label>
+                  <select
+                    value={filterValues[f.key] ?? ""}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setFilterValues((prev) => ({ ...prev, [f.key]: next }));
+                      setPage(1);
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 dark:border-white/20 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">Todos</option>
+                    {(filterOptions.get(f.key) ?? []).map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-slate-700 dark:text-white/70">
+                {filteredRows.length} resultados
+              </div>
+              <Button type="button" variant="secondary" onClick={resetFilters}>
+                Limpiar
+              </Button>
+            </div>
+          </div>
+        </Surface>
+      )}
 
       {error ? <div className="text-sm text-rose-600 dark:text-rose-200">{error}</div> : null}
 
@@ -180,9 +379,11 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
                     {c.header}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-white/70">
-                  Acciones
-                </th>
+                {showActionsColumn ? (
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-white/70">
+                    Acciones
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200/70 dark:divide-white/10">
@@ -201,11 +402,42 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
                             <Skeleton className="h-4 w-full max-w-[160px]" />
                           </td>
                         ))}
-                        <td className="whitespace-nowrap px-4 py-3 text-right">
-                          <Skeleton className="h-4 w-20" />
-                        </td>
+                        {showActionsColumn ? (
+                          <td className="whitespace-nowrap px-4 py-3 text-right">
+                            <Skeleton className="h-4 w-20" />
+                          </td>
+                        ) : null}
                       </motion.tr>
                     ))
+                  : pagedRows.length === 0 ? (
+                      <motion.tr
+                        key="empty"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.16 }}
+                      >
+                        <td colSpan={visibleColumns.length + (showActionsColumn ? 1 : 0)} className="px-4 py-8">
+                          <div className="flex flex-col items-center gap-3 text-center">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-white">Sin resultados</div>
+                            <div className="max-w-[520px] text-sm text-slate-700 dark:text-white/70">
+                              Ajusta los filtros o crea un nuevo registro para empezar.
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button type="button" variant="secondary" onClick={resetFilters}>
+                                Limpiar filtros
+                              </Button>
+                              {enableCreate ? (
+                                <Button type="button" onClick={openCreateDialog}>
+                                  <Plus className="h-4 w-4" />
+                                  Nuevo
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    )
                   : pagedRows.map((row) => (
                       <motion.tr
                         key={String(row.id)}
@@ -214,33 +446,46 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.16 }}
-                        className="hover:bg-slate-900/5 dark:hover:bg-white/5"
+                        className={config.details ? "cursor-pointer hover:bg-slate-900/5 dark:hover:bg-white/5" : "hover:bg-slate-900/5 dark:hover:bg-white/5"}
+                        onClick={() => openDetails(row)}
                       >
                         {visibleColumns.map((c) => (
                           <td key={c.key} className="whitespace-nowrap px-4 py-3 text-sm text-slate-800 dark:text-white/85">
                             {formatCell((row as Record<string, unknown>)[c.key])}
                           </td>
                         ))}
-                        <td className="whitespace-nowrap px-4 py-3 text-right">
-                          <div className="inline-flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
-                              onClick={() => openEditDialog(row)}
-                              aria-label="Editar"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-xl p-2 text-rose-600/90 hover:bg-rose-500/10 dark:text-rose-100/80"
-                              onClick={() => void handleDelete(row)}
-                              aria-label="Eliminar"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
+                        {showActionsColumn ? (
+                          <td className="whitespace-nowrap px-4 py-3 text-right">
+                            <div className="inline-flex items-center gap-2">
+                              {enableEdit ? (
+                                <button
+                                  type="button"
+                                  className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditDialog(row);
+                                  }}
+                                  aria-label="Editar"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              ) : null}
+                              {enableDelete ? (
+                                <button
+                                  type="button"
+                                  className="rounded-xl p-2 text-rose-600/90 hover:bg-rose-500/10 dark:text-rose-100/80"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDelete(row);
+                                  }}
+                                  aria-label="Eliminar"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        ) : null}
                       </motion.tr>
                     ))}
               </AnimatePresence>
@@ -248,10 +493,31 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
           </table>
         </div>
 
+
         <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-200/70 bg-slate-900/5 px-4 py-3 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70 sm:flex-row">
-          <div className="text-sm">
-            Página {page} de {totalPages} — {rows.length} registros
+          <div className="flex flex-col items-center gap-2 text-sm sm:flex-row">
+            <div>
+              Página {page} de {totalPages} — {filteredRows.length} resultados
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs">Por página</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-white/20 dark:bg-slate-800 dark:text-white"
+              >
+                {pageSizeOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={() => setPage(1)} disabled={page === 1}>
               Primero
@@ -303,6 +569,16 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
           </div>
         </div>
       </Dialog>
+
+      {config.details ? (
+        <Dialog
+          isOpen={isDetailsOpen}
+          title={config.details.title ?? "Detalle"}
+          onClose={closeDetails}
+        >
+          {detailsRow ? <div className="space-y-4">{config.details.render(detailsRow)}</div> : null}
+        </Dialog>
+      ) : null}
     </div>
   );
 }

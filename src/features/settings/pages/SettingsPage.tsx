@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { KeyRound, Lock, Save, ShieldCheck, UserCog } from "lucide-react";
+import { Download, KeyRound, Lock, Save, ShieldCheck, Upload, UserCog, Users, Database } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Surface } from "@/shared/ui/Surface";
 import { TextField } from "@/shared/ui/TextField";
 import { HttpClient } from "@/core/network/HttpClient";
 import { AdminProfileService, type AdminProfile } from "../services/AdminProfileService";
 import { cn } from "@/lib/utils";
+import { useRoleStore, type AppRole, getRoleLabel } from "@/core/stores/useRoleStore";
 
 type PasswordForm = {
   currentPassword: string;
@@ -16,6 +17,10 @@ type PasswordForm = {
 const profileService = new AdminProfileService();
 
 export function SettingsPage() {
+  const role = useRoleStore((s) => s.role);
+  const setRole = useRoleStore((s) => s.setRole);
+  const importInputId = useMemo(() => `demo-import-${Math.random().toString(16).slice(2)}`, []);
+
   const defaultProfile = useMemo<AdminProfile>(() => {
     return (
       profileService.get() ?? {
@@ -33,6 +38,7 @@ export function SettingsPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isSavingAdminKey, setIsSavingAdminKey] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
 
   useEffect(() => {
     setAdminKey(HttpClient.getInstance().getAdminKey() ?? "");
@@ -70,6 +76,73 @@ export function SettingsPage() {
     } finally {
       setIsSavingAdminKey(false);
     }
+  }
+
+  function exportDemoData() {
+    const payload: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith("demo_") || key === "demo_system-alerts" || key === "biowaste.auditLog") {
+        const value = localStorage.getItem(key);
+        if (value !== null) {
+          payload[key] = value;
+        }
+      }
+    }
+    const json = JSON.stringify({ exportedAt: new Date().toISOString(), payload }, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `biowaste-demo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Respaldo exportado.");
+  }
+
+  async function importDemoData(file: File | null) {
+    if (!file) return;
+    setImportBusy(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { payload?: Record<string, string> };
+      const payload = parsed && typeof parsed === "object" ? parsed.payload : null;
+      if (!payload || typeof payload !== "object") {
+        toast.error("Archivo inválido.");
+        return;
+      }
+      for (const [key, value] of Object.entries(payload)) {
+        if (typeof value !== "string") continue;
+        localStorage.setItem(key, value);
+      }
+      toast.success("Respaldo importado.");
+      window.location.reload();
+    } catch {
+      toast.error("No se pudo importar el respaldo.");
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  function resetDemoData() {
+    const confirmed = window.confirm("¿Restablecer los datos demo? Esto borra tablas demo, alertas y bitácora.");
+    if (!confirmed) return;
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith("demo_") || key === "demo_system-alerts" || key === "biowaste.auditLog") {
+        toRemove.push(key);
+      }
+    }
+    for (const key of toRemove) {
+      localStorage.removeItem(key);
+    }
+    toast.success("Datos demo restablecidos.");
+    window.location.reload();
   }
 
   return (
@@ -187,6 +260,77 @@ export function SettingsPage() {
               <Button type="button" className="w-full" onClick={saveAdminKey} isLoading={isSavingAdminKey}>
                 <Save className="h-4 w-4" />
                 Guardar API Key
+              </Button>
+            </div>
+          </Surface>
+
+          <Surface className="p-4 sm:p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200/70 bg-slate-900/5 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/80">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-base font-semibold">Rol (demo)</div>
+                <div className="text-sm text-slate-700 dark:text-white/60">
+                  Controla permisos y visibilidad de módulos
+                </div>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="mb-1 block text-sm text-slate-700 dark:text-white/80">Rol actual</span>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as AppRole)}
+                className="w-full rounded-xl border border-slate-300/80 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-400/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
+              >
+                <option value="admin">{getRoleLabel("admin")}</option>
+                <option value="operador">{getRoleLabel("operador")}</option>
+                <option value="conductor">{getRoleLabel("conductor")}</option>
+                <option value="auditor">{getRoleLabel("auditor")}</option>
+              </select>
+            </label>
+          </Surface>
+
+          <Surface className="p-4 sm:p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200/70 bg-slate-900/5 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/80">
+                <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-base font-semibold">Datos demo</div>
+                <div className="text-sm text-slate-700 dark:text-white/60">Exportar, importar y restablecer</div>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Button type="button" variant="secondary" className="w-full" onClick={exportDemoData}>
+                <Download className="h-4 w-4" />
+                Exportar respaldo
+              </Button>
+
+              <input
+                id={importInputId}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => void importDemoData(e.target.files?.[0] ?? null)}
+                disabled={importBusy}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                isLoading={importBusy}
+                onClick={() => document.getElementById(importInputId)?.click()}
+              >
+                <Upload className="h-4 w-4" />
+                Importar respaldo
+              </Button>
+
+              <Button type="button" className="w-full" onClick={resetDemoData}>
+                <Save className="h-4 w-4" />
+                Restablecer datos demo
               </Button>
             </div>
           </Surface>

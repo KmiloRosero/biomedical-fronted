@@ -1,11 +1,13 @@
 import { HttpClient } from "@/core/network/HttpClient";
 import { isDemoMode } from "@/core/config/flags";
+import { AuditLogService } from "@/core/services/AuditLogService";
 
 export type EntityId = string | number;
 
 export class GenericApiService<TRecord extends { id: EntityId }> {
   private readonly api = HttpClient.getInstance().client;
   private readonly storageKey: string;
+  private readonly audit = new AuditLogService();
 
   public constructor(
     private readonly tableName: string
@@ -43,10 +45,22 @@ export class GenericApiService<TRecord extends { id: EntityId }> {
       const newRecord = { ...input, id: newId } as TRecord;
       current.push(newRecord);
       localStorage.setItem(this.storageKey, JSON.stringify(current));
+      this.audit.append({
+        action: "create",
+        entity: this.tableName,
+        entityId: String(newRecord.id),
+        summary: `Creación de registro en ${this.tableName}`,
+      });
       return newRecord;
     }
     
     const response = await this.api.post<TRecord>(`/api/admin/${this.tableName}`, input);
+    this.audit.append({
+      action: "create",
+      entity: this.tableName,
+      entityId: String((response.data as TRecord).id),
+      summary: `Creación de registro en ${this.tableName}`,
+    });
     return response.data;
   }
 
@@ -59,10 +73,22 @@ export class GenericApiService<TRecord extends { id: EntityId }> {
       const updated = { ...current[index], ...patch } as TRecord;
       current[index] = updated;
       localStorage.setItem(this.storageKey, JSON.stringify(current));
+      this.audit.append({
+        action: "update",
+        entity: this.tableName,
+        entityId: String(id),
+        summary: `Actualización de registro en ${this.tableName}`,
+      });
       return updated;
     }
     
     const response = await this.api.put<TRecord>(`/api/admin/${this.tableName}/${id}`, patch);
+    this.audit.append({
+      action: "update",
+      entity: this.tableName,
+      entityId: String(id),
+      summary: `Actualización de registro en ${this.tableName}`,
+    });
     return response.data;
   }
 
@@ -71,9 +97,21 @@ export class GenericApiService<TRecord extends { id: EntityId }> {
       const current = await this.getAll();
       const filtered = current.filter(r => r.id !== id);
       localStorage.setItem(this.storageKey, JSON.stringify(filtered));
+      this.audit.append({
+        action: "delete",
+        entity: this.tableName,
+        entityId: String(id),
+        summary: `Eliminación de registro en ${this.tableName}`,
+      });
       return;
     }
     
     await this.api.delete(`/api/admin/${this.tableName}/${id}`);
+    this.audit.append({
+      action: "delete",
+      entity: this.tableName,
+      entityId: String(id),
+      summary: `Eliminación de registro en ${this.tableName}`,
+    });
   }
 }

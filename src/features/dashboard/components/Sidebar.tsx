@@ -17,17 +17,20 @@ import {
   Workflow,
   Truck,
   Info,
+  ScrollText,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/core/stores/useUiStore";
 import { useAiAssistantStore } from "@/features/aiAssistant/stores/useAiAssistantStore";
+import { useRoleStore, type AppRole } from "@/core/stores/useRoleStore";
 
 type SidebarItem = {
   to: string;
   label: string;
   icon: ReactNode;
+  roles?: AppRole[];
 };
 
 export function Sidebar() {
@@ -36,6 +39,7 @@ export function Sidebar() {
   const isMobileOpen = useUiStore((s) => s.isMobileSidebarOpen);
   const closeMobileSidebar = useUiStore((s) => s.closeMobileSidebar);
   const openAssistant = useAiAssistantStore((s) => s.open);
+  const role = useRoleStore((s) => s.role);
 
   const items = useMemo<SidebarItem[]>(
     () => [
@@ -46,65 +50,87 @@ export function Sidebar() {
         to: "/app/operations",
         label: "Operaciones",
         icon: <ClipboardList className="h-6 w-6" />,
+        roles: ["admin", "operador"],
       },
       {
         to: "/app/traceability",
         label: "Trazabilidad",
         icon: <Workflow className="h-6 w-6" />,
+        roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/waste",
         label: "Residuos",
         icon: <Recycle className="h-6 w-6" />,
+        roles: ["admin", "operador", "auditor"],
       },
       {
         to: "/app/routes",
         label: "Rutas",
         icon: <Route className="h-6 w-6" />,
+        roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/alerts",
         label: "Alertas",
         icon: <Bell className="h-6 w-6" />,
+        roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/reports",
         label: "Reportes",
         icon: <FileBarChart2 className="h-6 w-6" />,
+        roles: ["admin", "operador", "auditor"],
       },
       {
         to: "/app/system-monitor",
         label: "Estabilidad",
         icon: <Activity className="h-6 w-6" />,
+        roles: ["admin", "auditor"],
+      },
+      {
+        to: "/app/audit",
+        label: "Bitácora",
+        icon: <ScrollText className="h-6 w-6" />,
+        roles: ["admin", "auditor"],
       },
       {
         to: "/app/admin/municipalities",
         label: "Municipios",
         icon: <MapPinned className="h-6 w-6" />,
+        roles: ["admin"],
       },
       {
         to: "/app/admin/waste-types",
         label: "Tipos de Residuos",
         icon: <Recycle className="h-6 w-6" />,
+        roles: ["admin"],
       },
       {
         to: "/app/admin/transport-fleet",
         label: "Flota",
         icon: <Truck className="h-6 w-6" />,
+        roles: ["admin"],
       },
       {
         to: "/app/settings",
         label: "Configuración",
         icon: <Settings className="h-6 w-6" />,
+        roles: ["admin", "operador", "conductor", "auditor"],
       },
       {
         to: "/app/assistant",
         label: "Asistente IA",
         icon: <MessageSquareText className="h-6 w-6" />,
+        roles: ["admin", "operador", "auditor"],
       },
     ],
     []
   );
+
+  const visibleItems = useMemo(() => {
+    return items.filter((item) => !item.roles || item.roles.includes(role));
+  }, [items, role]);
 
   function renderContent(collapsed: boolean, showCollapseToggle: boolean) {
     return (
@@ -138,7 +164,7 @@ export function Sidebar() {
 
       <nav className="px-2">
         <ul className="space-y-1">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.to}>
               <NavLink
                 to={item.to}

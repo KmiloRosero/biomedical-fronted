@@ -3,6 +3,7 @@ import { Sidebar } from "../components/Sidebar";
 import { TopHeader } from "../components/TopHeader";
 import { AiAssistantWidget } from "@/features/aiAssistant/components/AiAssistantWidget";
 import { DemoBanner } from "@/shared/components/DemoBanner";
+import { OfflineBanner } from "@/shared/components/OfflineBanner";
 
 export function DashboardLayout() {
   return (
@@ -11,6 +12,7 @@ export function DashboardLayout() {
         <Sidebar />
         <div className="min-w-0 flex-1">
           <DemoBanner />
+          <OfflineBanner />
           <TopHeader />
           <main className="p-4 sm:p-6">
             <Outlet />
