@@ -24,6 +24,26 @@ type TabDef = {
 export function ProjectOverviewPage() {
   const [tab, setTab] = useState<AboutTab>("resumen");
 
+  const contentMotion = useMemo(
+    () => ({
+      hidden: { opacity: 0, y: 10 },
+      show: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const, staggerChildren: 0.06 },
+      },
+    }),
+    []
+  );
+
+  const bulletMotion = useMemo(
+    () => ({
+      hidden: { opacity: 0, x: -8 },
+      show: { opacity: 1, x: 0, transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const } },
+    }),
+    []
+  );
+
   const tabs = useMemo<TabDef[]>(
     () => [
       { id: "resumen", label: "Resumen" },
@@ -117,31 +137,75 @@ export function ProjectOverviewPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
           <div>
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="text-lg font-semibold">{content.title}</div>
-              <div className="mt-2 text-sm text-slate-700 dark:text-white/70">
-                {content.description}
-              </div>
-              <ul className="mt-4 space-y-2 text-sm text-slate-800 dark:text-white/80">
-                {content.bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-2">
-                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500/80" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-950/5 p-5 dark:border-white/10 dark:bg-white/5 sm:p-6">
+              <motion.div
+                className="pointer-events-none absolute -inset-24 opacity-70 blur-3xl"
+                style={{
+                  background:
+                    "radial-gradient(circle at 15% 20%, rgba(16,185,129,0.22), transparent 55%), radial-gradient(circle at 85% 40%, rgba(56,189,248,0.16), transparent 60%), radial-gradient(circle at 55% 95%, rgba(99,102,241,0.16), transparent 55%)",
+                }}
+                animate={{
+                  x: [0, 14, -10, 0],
+                  y: [0, -8, 12, 0],
+                  opacity: [0.55, 0.78, 0.62, 0.55],
+                }}
+                transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+              />
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <StatCard icon={<MapPinned className="h-5 w-5" />} label="Cobertura" value="Nariño (Pasto)" />
-              <StatCard icon={<Truck className="h-5 w-5" />} label="Flota demo" value="10 vehículos" />
-              <StatCard icon={<Recycle className="h-5 w-5" />} label="Tipos" value="15 categorías" />
-              <StatCard icon={<ShieldCheck className="h-5 w-5" />} label="Estado" value="Operativo" />
+              <motion.div
+                key={tab}
+                variants={contentMotion}
+                initial="hidden"
+                animate="show"
+              >
+                <motion.div variants={bulletMotion} className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_8px_rgba(16,185,129,0.14)]" />
+                  <div className="text-xs font-semibold tracking-wide text-slate-700 dark:text-white/70">Resumen ejecutivo</div>
+                </motion.div>
+
+                <motion.div variants={bulletMotion} className="mt-3 text-2xl font-semibold leading-tight sm:text-3xl">
+                  {content.title}
+                </motion.div>
+                <motion.div variants={bulletMotion} className="mt-3 text-sm text-slate-700 dark:text-white/70 sm:text-base">
+                  {content.description}
+                </motion.div>
+
+                <motion.ul className="mt-5 space-y-2.5 text-sm text-slate-800 dark:text-white/85" variants={contentMotion}>
+                  {content.bullets.map((b) => (
+                    <motion.li key={b} variants={bulletMotion} className="flex items-start gap-2.5">
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500/85" />
+                      <span>{b}</span>
+                    </motion.li>
+                  ))}
+                </motion.ul>
+              </motion.div>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                <StatCard
+                  icon={<MapPinned className="h-6 w-6" />}
+                  label="Cobertura"
+                  value="Nariño (Pasto)"
+                  tone="emerald"
+                />
+                <StatCard
+                  icon={<Truck className="h-6 w-6" />}
+                  label="Flota demo"
+                  value="10 vehículos"
+                  tone="cyan"
+                />
+                <StatCard
+                  icon={<Recycle className="h-6 w-6" />}
+                  label="Tipos"
+                  value="15 categorías"
+                  tone="indigo"
+                />
+                <StatCard
+                  icon={<ShieldCheck className="h-6 w-6" />}
+                  label="Estado"
+                  value="Operativo"
+                  tone="amber"
+                />
+              </div>
             </div>
           </div>
 
@@ -156,21 +220,43 @@ function StatCard({
   icon,
   label,
   value,
+  tone,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  tone?: "emerald" | "cyan" | "indigo" | "amber";
 }) {
+  const accent =
+    tone === "emerald"
+      ? "bg-emerald-500"
+      : tone === "cyan"
+        ? "bg-cyan-400"
+        : tone === "indigo"
+          ? "bg-indigo-400"
+          : "bg-amber-400";
+
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-3 dark:border-white/10 dark:bg-white/5">
-      <div className="grid h-10 w-10 place-items-center rounded-2xl border border-slate-200/70 bg-white/70 text-slate-800 dark:border-white/10 dark:bg-white/10 dark:text-white/90">
+    <motion.div
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ duration: 0.16 }}
+      className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/70 bg-white/40 p-4 dark:border-white/10 dark:bg-white/5"
+    >
+      <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
+      <motion.div
+        className={cn("absolute -inset-12 opacity-10 blur-2xl", accent)}
+        animate={{ opacity: [0.06, 0.14, 0.06] }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <div className="relative grid h-12 w-12 place-items-center rounded-2xl border border-slate-200/70 bg-white/70 text-slate-800 dark:border-white/10 dark:bg-white/10 dark:text-white/90">
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="relative min-w-0">
         <div className="text-xs text-slate-600 dark:text-white/60">{label}</div>
-        <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">{value}</div>
+        <div className="truncate text-base font-semibold text-slate-900 dark:text-white">{value}</div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
