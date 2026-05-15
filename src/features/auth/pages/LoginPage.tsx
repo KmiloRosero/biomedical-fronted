@@ -188,12 +188,6 @@ export function LoginPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {demoMode ? (
-                    <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-900 dark:text-emerald-100">
-                      Acceso directo habilitado. Puedes entrar al sistema sin iniciar sesión.
-                    </div>
-                  ) : null}
-
                   <div className="flex gap-2 rounded-2xl border border-slate-200/70 bg-slate-900/5 p-1 dark:border-white/10 dark:bg-white/5">
                     <button
                       type="button"
@@ -246,18 +240,19 @@ export function LoginPage() {
                     type="button"
                     className="w-full"
                     isLoading={isLoading}
-                    onClick={demoMode ? () => navigate("/app") : handleSubmit}
-                    disabled={demoMode ? false : !canSubmit}
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
                   >
                     <Mail className="h-4 w-4" />
-                    {demoMode
-                      ? "Entrar al sistema"
-                      : isLoading
-                        ? "Validando..."
-                        : mode === "signup"
-                          ? "Crear cuenta"
-                          : "Entrar"}
+                    {isLoading ? "Validando..." : mode === "signup" ? "Crear cuenta" : "Entrar"}
                   </Button>
+
+                  {demoMode ? (
+                    <Button type="button" className="w-full" variant="secondary" onClick={() => navigate("/app")}
+                    >
+                      Entrar sin iniciar sesión
+                    </Button>
+                  ) : null}
 
                   <div className="grid gap-2 sm:grid-cols-3">
                     <TrustPill label="Mapas" icon={<MapPinned className="h-4 w-4" />} />
