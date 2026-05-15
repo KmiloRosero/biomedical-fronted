@@ -3,7 +3,9 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ClipboardList,
+  Download,
   Recycle,
+  RefreshCw,
   Route,
   Truck,
 } from "lucide-react";
@@ -110,14 +112,23 @@ export function DashboardAnalyticsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Dashboard Principal Analítico</h2>
-          <p className="mt-1 text-sm text-slate-700 dark:text-white/70">Centro de mando con métricas y gráficos interactivos.</p>
-        </div>
-        <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/70 bg-slate-900/5 px-3 py-2 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70">
-          <Route className="h-4 w-4" />
+        <motion.div
+          initial={{ opacity: 0, x: -15 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Principal Analítico</h2>
+          <p className="mt-1.5 text-base text-slate-700 dark:text-white/70">Centro de mando con métricas y gráficos interactivos.</p>
+        </motion.div>
+        <motion.div 
+          initial={{ opacity: 0, x: 15 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200/70 bg-slate-900/5 px-4 py-2.5 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           {isLoading ? "Actualizando..." : "Actualizado"}
-        </div>
+        </motion.div>
       </div>
 
       {error ? <div className="text-sm text-rose-200">{error}</div> : null}
@@ -160,7 +171,7 @@ export function DashboardAnalyticsPage() {
               <div className="text-base font-semibold">Generación de Residuos por Mes</div>
               <div className="text-sm text-slate-700 dark:text-white/60">Simulación de la vista v_generacion_mensual</div>
             </div>
-            <div className="h-[320px]">
+            <div className="h-[400px]">
               {isLoading ? (
                 <div className="flex h-full flex-col justify-end gap-3">
                   <Skeleton className="h-4 w-24" />
@@ -206,7 +217,7 @@ export function DashboardAnalyticsPage() {
               <div className="text-base font-semibold">Distribución por Tipo de Residuo</div>
               <div className="text-sm text-slate-700 dark:text-white/60">Infeccioso, Químico, Cortopunzante</div>
             </div>
-            <div className="h-[320px]">
+            <div className="h-[400px]">
               {isLoading ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3">
                   <Skeleton className="h-4 w-32" />
@@ -245,6 +256,20 @@ export function DashboardAnalyticsPage() {
           </Surface>
         </motion.div>
       </div>
+
+      {/* Floating Action Button */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.8, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.5 }}
+        whileHover={{ scale: 1.08, boxShadow: "0 20px 25px -5px rgba(16, 185, 129, 0.35)" }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-8 right-8 z-50 grid h-16 w-16 place-items-center rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/40 transition-all hover:bg-emerald-500"
+        aria-label="Descargar reporte"
+        onClick={() => alert("Iniciando descarga del reporte en PDF...")}
+      >
+        <Download className="h-7 w-7" />
+      </motion.button>
     </div>
   );
 }
@@ -270,13 +295,13 @@ function SummaryCard({
           : "bg-amber-500/10 text-amber-100 border-amber-400/20";
 
   return (
-    <Surface className="p-4 sm:p-6">
-      <div className="flex items-start justify-between gap-3">
+    <Surface className="p-6 sm:p-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-sm text-slate-700 dark:text-white/70">{title}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
+          <div className="text-base text-slate-700 dark:text-white/70 font-medium">{title}</div>
+          <div className="mt-3 text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</div>
         </div>
-        <div className={cn("grid h-10 w-10 place-items-center rounded-2xl border", toneClass)}>
+        <div className={cn("grid h-14 w-14 place-items-center rounded-3xl border", toneClass)}>
           {icon}
         </div>
       </div>
