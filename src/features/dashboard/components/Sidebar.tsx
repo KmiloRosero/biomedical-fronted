@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Activity,
   Bell,
   ClipboardList,
+  Lock,
   Route,
   LayoutGrid,
   MapPinned,
@@ -40,6 +41,7 @@ export function Sidebar() {
   const closeMobileSidebar = useUiStore((s) => s.closeMobileSidebar);
   const openAssistant = useAiAssistantStore((s) => s.open);
   const role = useRoleStore((s) => s.role);
+  const navigate = useNavigate();
 
   const items = useMemo<SidebarItem[]>(
     () => [
@@ -128,10 +130,6 @@ export function Sidebar() {
     []
   );
 
-  const visibleItems = useMemo(() => {
-    return items.filter((item) => !item.roles || item.roles.includes(role));
-  }, [items, role]);
-
   function renderContent(collapsed: boolean, showCollapseToggle: boolean) {
     return (
     <div
@@ -164,7 +162,9 @@ export function Sidebar() {
 
       <nav className="px-2">
         <ul className="space-y-1">
-          {visibleItems.map((item) => (
+          {items.map((item) => {
+            const isAllowed = !item.roles || item.roles.includes(role);
+            return (
             <li key={item.to}>
               <NavLink
                 to={item.to}
@@ -173,11 +173,19 @@ export function Sidebar() {
                     "flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-sm transition",
                     isActive
                       ? "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100"
-                      : "text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10",
+                      : isAllowed
+                        ? "text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                        : "cursor-not-allowed text-slate-400 dark:text-white/35",
                     collapsed ? "justify-center" : null
                   )
                 }
                 onClick={(e) => {
+                  if (!isAllowed) {
+                    e.preventDefault();
+                    closeMobileSidebar();
+                    navigate("/app/forbidden", { replace: true });
+                    return;
+                  }
                   if (item.to.endsWith("/assistant")) {
                     e.preventDefault();
                     openAssistant();
@@ -188,10 +196,16 @@ export function Sidebar() {
                 }}
               >
                 {item.icon}
-                {collapsed ? null : <span className="truncate">{item.label}</span>}
+                {collapsed ? null : (
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{item.label}</span>
+                    {isAllowed ? null : <Lock className="h-4 w-4 shrink-0 opacity-70" />}
+                  </div>
+                )}
               </NavLink>
             </li>
-          ))}
+          );
+          })}
         </ul>
       </nav>
     </div>
