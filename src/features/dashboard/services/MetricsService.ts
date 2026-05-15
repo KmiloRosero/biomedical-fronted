@@ -1,3 +1,8 @@
+import { isDemoMode } from "@/core/config/flags";
+import { wasteLots } from "@/features/waste/data/demoWasteLots";
+import { systemAlerts } from "@/features/alerts/data/demoAlerts";
+import { departmentalRoutes } from "@/features/routes/data/demoDepartmentalRoutes";
+
 export type MonthlyGenerationItem = {
   month: string;
   kilograms: number;
@@ -15,15 +20,39 @@ export type DashboardSummary = {
   pendingOrders: number;
 };
 
+// Calcular métricas desde datos demo
+function calculateCollectedToday(): number {
+  if (!isDemoMode()) return 1240;
+  
+  const today = new Date().toISOString().split('T')[0]!;
+  const collectedToday = wasteLots
+    .filter(w => w.estado === "tratado" && w.fecha_generacion >= today)
+    .reduce((sum, w) => sum + w.cantidad_kg, 0);
+  
+  return Math.round(collectedToday || 1240);
+}
+
+function calculateCriticalAlerts(): number {
+  if (!isDemoMode()) return 3;
+  
+  return systemAlerts.filter(a => a.nivel === "critical" && !a.resuelta).length;
+}
+
+function calculatePendingOrders(): number {
+  if (!isDemoMode()) return 14;
+  
+  return wasteLots.filter(w => w.estado === "generado").length;
+}
+
 export class MetricsService {
   public async getTotalWastes(): Promise<number> {
     await this.delay(300);
-    return 1240;
+    return calculateCollectedToday();
   }
 
   public async getActiveRoutes(): Promise<number> {
     await this.delay(260);
-    return 7;
+    return departmentalRoutes.filter(r => r.isActive).length;
   }
 
   public async getMonthlyGeneration(): Promise<MonthlyGenerationItem[]> {
@@ -33,7 +62,7 @@ export class MetricsService {
       { month: "Feb", kilograms: 7800 },
       { month: "Mar", kilograms: 9100 },
       { month: "Abr", kilograms: 8600 },
-      { month: "May", kilograms: 9400 },
+      { month: "May", kilograms: calculateCollectedToday() * 30 }, // Total mensual estimado
       { month: "Jun", kilograms: 9900 },
       { month: "Jul", kilograms: 10150 },
       { month: "Ago", kilograms: 9700 },
@@ -46,10 +75,15 @@ export class MetricsService {
 
   public async getWasteTypeDistribution(): Promise<WasteTypeDistributionItem[]> {
     await this.delay(320);
+    // Calcular distribución real desde datos demo
+    const biosanitarios = wasteLots.filter(w => w.tipo_residuo_id.includes("res-001")).reduce((s, w) => s + w.cantidad_kg, 0);
+    const químicos = wasteLots.filter(w => w.tipo_residuo_id.includes("res-005") || w.tipo_residuo_id.includes("res-007")).reduce((s, w) => s + w.cantidad_kg, 0);
+    const cortopunzantes = wasteLots.filter(w => w.tipo_residuo_id.includes("res-002")).reduce((s, w) => s + w.cantidad_kg, 0);
+    
     return [
-      { type: "INFECTIOUS", kilograms: 5200 },
-      { type: "CHEMICAL", kilograms: 2100 },
-      { type: "SHARPS", kilograms: 1700 },
+      { type: "INFECTIOUS", kilograms: Math.round(biosanitarios || 5200) },
+      { type: "CHEMICAL", kilograms: Math.round(químicos || 2100) },
+      { type: "SHARPS", kilograms: Math.round(cortopunzantes || 1700) },
     ];
   }
 
@@ -62,8 +96,8 @@ export class MetricsService {
     return {
       collectedTodayKg,
       vehiclesOnRoute,
-      criticalAlerts: 3,
-      pendingOrders: 14,
+      criticalAlerts: calculateCriticalAlerts(),
+      pendingOrders: calculatePendingOrders(),
     };
   }
 

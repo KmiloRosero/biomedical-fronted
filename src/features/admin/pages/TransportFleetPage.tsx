@@ -1,29 +1,34 @@
 import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
+import { nariñoFleets, Fleet } from "../data/demoFleets";
 
-type TransportFleetRecord = {
-  id: string | number;
-  truckCode: string;
-  plate: string;
-  capacityKg: number;
-  isAvailable: boolean;
-};
+// Extender el servicio para cargar datos demo iniciales
+class FleetService extends GenericApiService<Fleet> {
+  constructor() {
+    super("transport-fleet");
+    // Inicializar con todas las flotas de Nariño
+    this.initializeData(nariñoFleets);
+  }
+}
 
-const config: DynamicTableCrudConfig<TransportFleetRecord> = {
+const config: DynamicTableCrudConfig<Fleet> = {
   tableName: "transport-fleet",
-  title: "Flota de Transporte",
+  title: "Flotas de Transporte - Nariño",
   columns: [
     { key: "id", header: "ID", hidden: true },
-    { key: "truckCode", header: "Código", inputType: "text" },
-    { key: "plate", header: "Placa", inputType: "text" },
-    { key: "capacityKg", header: "Capacidad (Kg)", inputType: "number" },
-    { key: "isAvailable", header: "Disponible", inputType: "boolean" },
+    { key: "placa", header: "Placa", inputType: "text" },
+    { key: "marca", header: "Marca/Modelo", inputType: "text" },
+    { key: "capacidad_toneladas", header: "Capacidad (ton)", inputType: "number" },
+    { key: "conductor", header: "Conductor", inputType: "text" },
+    { key: "estado", header: "Estado", inputType: "select", options: ["activo", "mantenimiento", "en ruta"] },
+    { key: "ultima_mantenimiento", header: "Último mantenimiento", inputType: "date" },
+    { key: "isActive", header: "Activo", inputType: "boolean" },
   ],
   pageSize: 10,
 };
 
-const api = new GenericApiService<TransportFleetRecord>(config.tableName);
+const api = new FleetService();
 
 export function TransportFleetPage() {
   return <DynamicTableCrud config={config} api={api} />;

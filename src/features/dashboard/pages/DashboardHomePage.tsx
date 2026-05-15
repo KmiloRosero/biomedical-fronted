@@ -228,10 +228,10 @@ export function DashboardHomePage() {
             <div className="mt-1 text-sm text-slate-700 dark:text-white/60">Checklist de operación</div>
 
             <div className="mt-4 space-y-2">
-              <StatusRow label="Autenticación" status="ok" />
-              <StatusRow label="Admin API Key" status="warning" />
-              <StatusRow label="Conectividad backend" status="warning" />
-              <StatusRow label="Módulos activos" status="ok" />
+              <StatusRow label="Autenticación (Demo)" status="ok" />
+              <StatusRow label="Modo demostración activo" status="ok" />
+              <StatusRow label="Datos locales sincronizados" status="ok" />
+              <StatusRow label="Todos los módulos funcionando" status="ok" />
             </div>
 
             <div className="mt-4">

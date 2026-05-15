@@ -5,11 +5,40 @@ import { CheckCircle2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { Surface } from "@/shared/ui/Surface";
 import { Button } from "@/shared/ui/Button";
 import { Skeleton } from "@/shared/ui/Skeleton";
-import { RestClient } from "@/core/services/RestClient";
+import { isDemoMode } from "@/core/config/flags";
+import { systemAlerts, Alert } from "../data/demoAlerts";
 
-type AlertRow = Record<string, unknown>;
+// Cliente REST solo para modo producción (carga diferida para evitar errores en modo demo)
+let clientPromise: Promise<any> | null = null;
+async function getClient() {
+  if (isDemoMode()) return null;
+  if (!clientPromise) {
+    clientPromise = import("@/core/services/RestClient").then((m) => new m.RestClient());
+  }
+  return clientPromise;
+}
 
-const client = new RestClient();
+// Almacenamiento local para modo demo
+const STORAGE_KEY = "demo_system-alerts";
+
+function getStoredAlerts(): Alert[] {
+  if (!isDemoMode()) return [];
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) {
+    // Inicializar con alertas demo
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(systemAlerts));
+    return systemAlerts;
+  }
+  return JSON.parse(stored);
+}
+
+function saveAlerts(alerts: Alert[]) {
+  if (isDemoMode()) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts));
+  }
+}
+
+type AlertRow = Alert & Record<string, unknown>;
 
 export function AlertsPage() {
   const [rows, setRows] = useState<AlertRow[]>([]);
@@ -30,12 +59,23 @@ export function AlertsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await client.get<unknown>("/api/alerts");
-      const list = Array.isArray(data) ? (data as AlertRow[]) : [];
-      setRows(list);
-      const criticalCount = list.filter((r) => String(r["level"] ?? r["severity"] ?? "").toLowerCase() === "critical").length;
-      if (criticalCount > 0) {
-        toast.error(`Hay ${criticalCount} alertas críticas.`);
+      if (isDemoMode()) {
+        const list = getStoredAlerts();
+        setRows(list as AlertRow[]);
+        const criticalCount = list.filter((r) => String(r.nivel).toLowerCase() === "critical").length;
+        if (criticalCount > 0) {
+          toast.error(`Hay ${criticalCount} alertas críticas.`);
+        }
+      } else {
+        // Modo producción - mantener lógica original
+        const client = await getClient();
+        const data = client ? await client.get("/api/alerts") : [];
+        const list = Array.isArray(data) ? data as AlertRow[] : [];
+        setRows(list);
+        const criticalCount = list.filter((r) => String(r["level"] ?? r["severity"] ?? "").toLowerCase() === "critical").length;
+        if (criticalCount > 0) {
+          toast.error(`Hay ${criticalCount} alertas críticas.`);
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "No se pudo cargar.");
@@ -60,9 +100,19 @@ export function AlertsPage() {
     }
     setIsSubmitting(true);
     try {
-      await client.patch(`/api/alerts/${encodeURIComponent(String(id))}/read`);
-      toast.success("Marcada como leída.");
-      await load();
+      if (isDemoMode()) {
+        const alerts = getStoredAlerts();
+        const updated = alerts.map(a => a.id === id ? { ...a, resuelta: true } : a);
+        saveAlerts(updated);
+        toast.success("Marcada como resuelta.");
+        await load();
+      } else {
+        const client = await getClient();
+        if (!client) return;
+        await client.patch(`/api/alerts/${encodeURIComponent(String(id))}/read`);
+        toast.success("Marcada como leída.");
+        await load();
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudo actualizar.");
     } finally {
@@ -78,9 +128,19 @@ export function AlertsPage() {
     }
     setIsSubmitting(true);
     try {
-      await client.delete(`/api/alerts/${encodeURIComponent(String(id))}`);
-      toast.success("Alerta eliminada.");
-      await load();
+      if (isDemoMode()) {
+        const alerts = getStoredAlerts();
+        const filtered = alerts.filter(a => a.id !== id);
+        saveAlerts(filtered);
+        toast.success("Alerta eliminada.");
+        await load();
+      } else {
+        const client = await getClient();
+        if (!client) return;
+        await client.delete(`/api/alerts/${encodeURIComponent(String(id))}`);
+        toast.success("Alerta eliminada.");
+        await load();
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudo eliminar.");
     } finally {

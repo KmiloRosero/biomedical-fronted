@@ -1,29 +1,34 @@
 import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
+import { nariñoMunicipalities, Municipality } from "../data/demoMunicipalities";
 
-type MunicipalityRecord = {
-  id: string | number;
-  name: string;
-  department: string;
-  code: string;
-  isActive: boolean;
-};
+// Extender el servicio para cargar datos demo iniciales
+class MunicipalityService extends GenericApiService<Municipality> {
+  constructor() {
+    super("municipalities");
+    // Inicializar con todos los municipios de Nariño si están vacíos
+    this.initializeData(nariñoMunicipalities);
+  }
+}
 
-const config: DynamicTableCrudConfig<MunicipalityRecord> = {
+const config: DynamicTableCrudConfig<Municipality> = {
   tableName: "municipalities",
-  title: "Municipios",
+  title: "Municipios de Nariño",
   columns: [
     { key: "id", header: "ID", hidden: true },
-    { key: "name", header: "Nombre", inputType: "text" },
-    { key: "department", header: "Departamento", inputType: "text" },
-    { key: "code", header: "Código", inputType: "text" },
+    { key: "nombre", header: "Nombre Municipio", inputType: "text" },
+    { key: "region", header: "Región", inputType: "select", options: ["Sur", "Norte", "Centro", "Occidente", "Oriente"] },
+    { key: "instituciones_salud", header: "Instituciones", inputType: "number" },
+    { key: "generacion_mensual", header: "Generación (ton/mes)", inputType: "number" },
+    { key: "latitud", header: "Latitud", inputType: "number", hidden: true },
+    { key: "longitud", header: "Longitud", inputType: "number", hidden: true },
     { key: "isActive", header: "Activo", inputType: "boolean" },
   ],
   pageSize: 10,
 };
 
-const api = new GenericApiService<MunicipalityRecord>(config.tableName);
+const api = new MunicipalityService();
 
 export function MunicipalitiesPage() {
   return <DynamicTableCrud config={config} api={api} />;

@@ -8,13 +8,14 @@ import { TextField } from "@/shared/ui/TextField";
 import { Skeleton } from "@/shared/ui/Skeleton";
 import type { EntityId, GenericApiService } from "@/core/services/GenericApiService";
 
-export type ColumnInputType = "text" | "number" | "boolean" | "date";
+export type ColumnInputType = "text" | "number" | "boolean" | "date" | "select";
 
 export type DynamicColumnConfig<TRecord> = {
   key: keyof TRecord & string;
   header: string;
   inputType?: ColumnInputType;
   hidden?: boolean;
+  options?: string[];
 };
 
 export type DynamicTableCrudConfig<TRecord extends { id: EntityId }> = {
@@ -326,6 +327,23 @@ function FieldEditor<TRecord>({
           className="h-5 w-5 accent-emerald-500"
         />
       </label>
+    );
+  }
+
+  if (column.inputType === "select" && column.options) {
+    return (
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-slate-700 dark:text-white/80">{column.header}</label>
+        <select
+          value={String(value || "")}
+          onChange={(e) => onChange(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm dark:border-white/20 dark:bg-slate-800 dark:text-white"
+        >
+          {column.options.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      </div>
     );
   }
 
