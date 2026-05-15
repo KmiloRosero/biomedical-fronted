@@ -20,6 +20,7 @@ export type TraceabilityMapProps = {
   onMapClick?: (pos: { lat: number; lng: number }) => void;
   clickHint?: string | null;
   draftMarker?: { label: string; position: LatLngExpression } | null;
+  selectedWaypointIndex?: number;
 };
 
 type AnimationCallbacks = {
@@ -95,6 +96,7 @@ export function TraceabilityMap({
   onMapClick,
   clickHint,
   draftMarker,
+  selectedWaypointIndex,
 }: TraceabilityMapProps) {
   const points = useMemo<TracePoint[]>(() => {
     if (customPoints?.length) {
@@ -204,7 +206,7 @@ export function TraceabilityMap({
               <Marker
                 key={`${idx}-${w.label}`}
                 position={w.position}
-                icon={createWaypointIcon(w.label, idx < visitedWaypointCount)}
+                icon={createWaypointIcon(w.label, idx < visitedWaypointCount, idx === selectedWaypointIndex)}
               />
             ))
           : null}
@@ -225,12 +227,25 @@ export function TraceabilityMap({
 
         <FollowTruck position={truckPos} />
 
+        {typeof selectedWaypointIndex === "number" && selectedWaypointIndex >= 0 && waypoints?.[selectedWaypointIndex]
+          ? <FocusPosition position={waypoints[selectedWaypointIndex]!.position} enabled={!isTracking} />
+          : null}
+
         <FitRoute route={route} />
 
         {onMapClick ? <MapClickHandler onMapClick={onMapClick} /> : null}
       </MapContainer>
     </div>
   );
+}
+
+function FocusPosition({ position, enabled }: { position: LatLngExpression; enabled: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!enabled) return;
+    map.flyTo(position, Math.max(map.getZoom(), 13), { animate: true, duration: 0.35 });
+  }, [enabled, map, position]);
+  return null;
 }
 
 function MapClickHandler({
@@ -290,21 +305,32 @@ function createPointIcon(label: string) {
   });
 }
 
-function createWaypointIcon(label: string, visited: boolean) {
+function createWaypointIcon(label: string, visited: boolean, selected?: boolean) {
   const ring = visited ? "rgba(56,189,248,0.95)" : "rgba(16,185,129,0.9)";
   const fill = visited ? "rgba(56,189,248,0.28)" : "rgba(2,6,23,0.85)";
+  const size = selected ? 18 : 14;
+  const anchor = selected ? 9 : 7;
+  const shadow = selected
+    ? "0 14px 26px -14px rgba(56,189,248,0.6), 0 0 0 6px rgba(16,185,129,0.12)"
+    : "0 10px 22px -14px rgba(56,189,248,0.55)";
   return L.divIcon({
     className: "",
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    iconSize: [size, size],
+    iconAnchor: [anchor, anchor],
     html:
       '<div title="'
       + escapeHtml(label)
-      + '" style="width:14px;height:14px;border-radius:999px;background:'
+      + '" style="width:'
+      + size
+      + 'px;height:'
+      + size
+      + 'px;border-radius:999px;background:'
       + fill
       + ';border:2px solid '
       + ring
-      + ';box-shadow:0 10px 22px -14px rgba(56,189,248,0.55);"></div>',
+      + ';box-shadow:'
+      + shadow
+      + ';"></div>',
   });
 }
 

@@ -27,7 +27,7 @@ import { WasteTimeline, type WasteTimelineItem } from "../components/WasteTimeli
 import { TraceabilityMap } from "../components/TraceabilityMap";
 import { RoutesService, type BackendRoute, type BackendStop } from "../services/RoutesService";
 import type { LatLngExpression } from "leaflet";
-import { demoRoutes, getDemoStops } from "../data/demoRoutes";
+import { demoRoutes } from "../data/demoRoutes";
 
 type StageState = {
   currentIndex: number;
@@ -62,6 +62,8 @@ export function TraceabilityPage() {
   const [viewJson, setViewJson] = useState<unknown | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [selectedStopId, setSelectedStopId] = useState<string>("");
+
   const [mapPickMode, setMapPickMode] = useState<"none" | "route" | "stop">("none");
   const [pendingFirstStop, setPendingFirstStop] = useState<{ lat: number; lng: number } | null>(null);
   const [createRouteInitial, setCreateRouteInitial] = useState<unknown>({
@@ -90,11 +92,13 @@ export function TraceabilityPage() {
         if (!mounted) return;
         const safeList = list.length ? list : demoRoutes;
         setRoutes(safeList);
-        if (!selectedRouteId) {
+        const hasSelected = selectedRouteId
+          ? safeList.some((r) => String(extractRouteId(r) ?? "") === selectedRouteId)
+          : false;
+
+        if (!selectedRouteId || !hasSelected) {
           const firstId = safeList[0] ? String(extractRouteId(safeList[0]) ?? "") : "";
-          if (firstId) {
-            setSelectedRouteId(firstId);
-          }
+          setSelectedRouteId(firstId);
         }
       } catch {
         if (!mounted) return;
@@ -118,11 +122,7 @@ export function TraceabilityPage() {
     async function loadStops() {
       if (!selectedRouteId) {
         setStops([]);
-        return;
-      }
-
-      if (selectedRouteId.startsWith("demo-")) {
-        setStops(getDemoStops(selectedRouteId));
+        setSelectedStopId("");
         return;
       }
 
@@ -130,10 +130,17 @@ export function TraceabilityPage() {
       try {
         const list = await routesService.getStops(selectedRouteId);
         if (!mounted) return;
-        setStops(list.length ? list : getDemoStops(selectedRouteId));
+        setStops(list);
+        if (selectedStopId) {
+          const exists = list.some((s) => String(extractStopId(s) ?? "") === selectedStopId);
+          if (!exists) {
+            setSelectedStopId("");
+          }
+        }
       } catch {
         if (!mounted) return;
-        setStops(getDemoStops(selectedRouteId));
+        setStops([]);
+        setSelectedStopId("");
       } finally {
         if (!mounted) return;
         setIsLoadingStops(false);
@@ -143,7 +150,7 @@ export function TraceabilityPage() {
     return () => {
       mounted = false;
     };
-  }, [routesService, selectedRouteId]);
+  }, [routesService, selectedRouteId, selectedStopId]);
 
   const mapPoints = useMemo(() => {
     const geoStops = stops
@@ -172,6 +179,11 @@ export function TraceabilityPage() {
       .map((s) => ({ stop: s, pos: extractLatLng(s), label: extractStopLabel(s) }))
       .filter((x): x is { stop: BackendStop; pos: LatLngExpression; label: string } => Boolean(x.pos));
   }, [stops]);
+
+  const selectedWaypointIndex = useMemo(() => {
+    if (!selectedStopId) return -1;
+    return mapWaypoints.findIndex((w) => String(extractStopId(w.stop) ?? "") === selectedStopId);
+  }, [mapWaypoints, selectedStopId]);
 
   const timelineItems = useMemo<WasteTimelineItem[]>(() => {
     return stages.map((stage, index) => {
@@ -242,7 +254,16 @@ export function TraceabilityPage() {
     setIsLoadingRoutes(true);
     try {
       const list = await routesService.getRoutes();
-      setRoutes(list.length ? list : demoRoutes);
+      const safeList = list.length ? list : demoRoutes;
+      setRoutes(safeList);
+      if (selectedRouteId) {
+        const exists = safeList.some((r) => String(extractRouteId(r) ?? "") === selectedRouteId);
+        if (!exists) {
+          const firstId = safeList[0] ? String(extractRouteId(safeList[0]) ?? "") : "";
+          setSelectedRouteId(firstId);
+          setSelectedStopId("");
+        }
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudieron cargar rutas.");
       setRoutes(demoRoutes);
@@ -254,21 +275,24 @@ export function TraceabilityPage() {
   async function refreshStops() {
     if (!selectedRouteId) {
       setStops([]);
-      return;
-    }
-
-    if (selectedRouteId.startsWith("demo-")) {
-      setStops(getDemoStops(selectedRouteId));
+      setSelectedStopId("");
       return;
     }
 
     setIsLoadingStops(true);
     try {
       const list = await routesService.getStops(selectedRouteId);
-      setStops(list.length ? list : getDemoStops(selectedRouteId));
+      setStops(list);
+      if (selectedStopId) {
+        const exists = list.some((s) => String(extractStopId(s) ?? "") === selectedStopId);
+        if (!exists) {
+          setSelectedStopId("");
+        }
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudieron cargar paradas.");
-      setStops(getDemoStops(selectedRouteId));
+      setStops([]);
+      setSelectedStopId("");
     } finally {
       setIsLoadingStops(false);
     }
@@ -523,7 +547,10 @@ export function TraceabilityPage() {
               ) : (
                 <select
                   value={selectedRouteId}
-                  onChange={(e) => setSelectedRouteId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedRouteId(e.target.value);
+                    setSelectedStopId("");
+                  }}
                   className="h-10 w-full rounded-xl border border-slate-300/80 bg-white px-3 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
                 >
                   <option value="">Selecciona una ruta…</option>
@@ -610,7 +637,16 @@ export function TraceabilityPage() {
                 stops.map((s, idx) => (
                   <div
                     key={String(extractStopId(s) ?? idx)}
-                    className="rounded-2xl border border-slate-200/70 bg-slate-900/5 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+                    className={
+                      String(extractStopId(s) ?? "") === selectedStopId
+                        ? "cursor-pointer rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 dark:border-emerald-200/20 dark:bg-emerald-400/10"
+                        : "cursor-pointer rounded-2xl border border-slate-200/70 bg-slate-900/5 px-4 py-3 hover:bg-slate-900/10 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                    }
+                    onClick={() => {
+                      const id = extractStopId(s);
+                      if (!id) return;
+                      setSelectedStopId(String(id));
+                    }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -621,23 +657,34 @@ export function TraceabilityPage() {
                         <button
                           type="button"
                           className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
-                          onClick={() => void moveStop(idx, -1)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void moveStop(idx, -1);
+                          }}
                           aria-label="Subir"
+                          disabled={idx === 0}
                         >
                           <ArrowUp className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
                           className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
-                          onClick={() => void moveStop(idx, 1)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void moveStop(idx, 1);
+                          }}
                           aria-label="Bajar"
+                          disabled={idx === stops.length - 1}
                         >
                           <ArrowDown className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
                           className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
-                          onClick={() => setEditStop(s)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditStop(s);
+                          }}
                           aria-label="Editar"
                         >
                           <Pencil className="h-4 w-4" />
@@ -645,7 +692,10 @@ export function TraceabilityPage() {
                         <button
                           type="button"
                           className="rounded-xl p-2 text-rose-600/90 hover:bg-rose-500/10 dark:text-rose-100/80"
-                          onClick={() => void removeStop(s)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removeStop(s);
+                          }}
                           aria-label="Eliminar"
                           disabled={isSubmitting}
                         >
@@ -654,7 +704,14 @@ export function TraceabilityPage() {
                       </div>
                     </div>
                     <div className="mt-2">
-                      <Button type="button" variant="secondary" onClick={() => setViewJson(s)}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewJson(s);
+                        }}
+                      >
                         Ver JSON
                       </Button>
                     </div>
@@ -724,6 +781,7 @@ export function TraceabilityPage() {
                     ? { label: "Inicio", position: [pendingFirstStop.lat, pendingFirstStop.lng] }
                     : null
                 }
+                {...(selectedWaypointIndex >= 0 ? { selectedWaypointIndex } : {})}
               />
             </Surface>
           </motion.div>
