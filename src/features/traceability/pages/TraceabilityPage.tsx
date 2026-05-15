@@ -28,6 +28,7 @@ import { TraceabilityMap } from "../components/TraceabilityMap";
 import { RoutesService, type BackendRoute, type BackendStop } from "../services/RoutesService";
 import type { LatLngExpression } from "leaflet";
 import { demoRoutes } from "../data/demoRoutes";
+import { useSearchParams } from "react-router-dom";
 
 type StageState = {
   currentIndex: number;
@@ -35,6 +36,9 @@ type StageState = {
 };
 
 export function TraceabilityPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlRouteId = searchParams.get("routeId") ?? "";
+
   const stages: WasteStage[] = useMemo(
     () => [
       { id: "GENERATED", label: "Generado" },
@@ -92,6 +96,16 @@ export function TraceabilityPage() {
         if (!mounted) return;
         const safeList = list.length ? list : demoRoutes;
         setRoutes(safeList);
+
+        const urlExists = urlRouteId
+          ? safeList.some((r) => String(extractRouteId(r) ?? "") === urlRouteId)
+          : false;
+        if (urlRouteId && urlExists && selectedRouteId !== urlRouteId) {
+          setSelectedRouteId(urlRouteId);
+          setSelectedStopId("");
+          return;
+        }
+
         const hasSelected = selectedRouteId
           ? safeList.some((r) => String(extractRouteId(r) ?? "") === selectedRouteId)
           : false;
@@ -115,7 +129,15 @@ export function TraceabilityPage() {
     return () => {
       mounted = false;
     };
-  }, [routesService, selectedRouteId]);
+  }, [routesService, selectedRouteId, urlRouteId]);
+
+  useEffect(() => {
+    if (!selectedRouteId) return;
+    if (urlRouteId === selectedRouteId) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("routeId", selectedRouteId);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, selectedRouteId, setSearchParams, urlRouteId]);
 
   useEffect(() => {
     let mounted = true;

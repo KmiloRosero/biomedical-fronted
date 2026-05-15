@@ -2,6 +2,8 @@ import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
 import { wasteLots, WasteLot } from "../data/demoWasteLots";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 // Extender el servicio para cargar datos demo iniciales
 class WasteLotService extends GenericApiService<WasteLot> {
@@ -12,13 +14,13 @@ class WasteLotService extends GenericApiService<WasteLot> {
   }
 }
 
-const config: DynamicTableCrudConfig<WasteLot> = {
+const baseConfig: DynamicTableCrudConfig<WasteLot> = {
   tableName: "waste-lots",
   title: "Lotes de Residuos - Nariño",
   subtitle: "Registro, seguimiento y control de lotes para recolección, transporte y tratamiento.",
   enableSearch: true,
   searchPlaceholder: "Buscar por institución o estado...",
-  searchKeys: ["institucion", "estado"],
+  searchKeys: ["id", "institucion", "estado"],
   filters: [
     {
       key: "estado",
@@ -66,5 +68,18 @@ const config: DynamicTableCrudConfig<WasteLot> = {
 const api = new WasteLotService();
 
 export function WastePage() {
+  const [params] = useSearchParams();
+  const estado = params.get("estado") ?? "";
+  const q = params.get("q") ?? "";
+
+  const config = useMemo<DynamicTableCrudConfig<WasteLot>>(() => {
+    return {
+      ...baseConfig,
+      initialSearchText: q,
+      ...(estado ? { initialFilterValues: { estado } } : {}),
+      initialStateToken: `estado=${estado}|q=${q}`,
+    };
+  }, [estado, q]);
+
   return <DynamicTableCrud config={config} api={api} />;
 }

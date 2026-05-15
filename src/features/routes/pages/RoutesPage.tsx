@@ -2,6 +2,8 @@ import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
 import { departmentalRoutes, DepartmentalRoute } from "../data/demoDepartmentalRoutes";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 // Extender el servicio para cargar datos demo iniciales
 class RouteService extends GenericApiService<DepartmentalRoute> {
@@ -12,13 +14,13 @@ class RouteService extends GenericApiService<DepartmentalRoute> {
   }
 }
 
-const config: DynamicTableCrudConfig<DepartmentalRoute> = {
+const baseConfig: DynamicTableCrudConfig<DepartmentalRoute> = {
   tableName: "departmental-routes",
   title: "Rutas Departamentales - Nariño",
   subtitle: "Planificación de cobertura, asignación de flota y control de progreso.",
   enableSearch: true,
   searchPlaceholder: "Buscar por nombre o flota...",
-  searchKeys: ["nombre", "flota_id"],
+  searchKeys: ["id", "nombre", "flota_id"],
   filters: [
     { key: "flota_id", label: "Flota" },
   ],
@@ -59,5 +61,18 @@ const config: DynamicTableCrudConfig<DepartmentalRoute> = {
 const api = new RouteService();
 
 export function RoutesPage() {
+  const [params] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const flota_id = params.get("flota_id") ?? params.get("flota") ?? "";
+
+  const config = useMemo<DynamicTableCrudConfig<DepartmentalRoute>>(() => {
+    return {
+      ...baseConfig,
+      initialSearchText: q,
+      ...(flota_id ? { initialFilterValues: { flota_id } } : {}),
+      initialStateToken: `flota_id=${flota_id}|q=${q}`,
+    };
+  }, [flota_id, q]);
+
   return <DynamicTableCrud config={config} api={api} />;
 }

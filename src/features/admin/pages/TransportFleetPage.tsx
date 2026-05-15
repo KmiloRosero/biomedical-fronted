@@ -2,6 +2,8 @@ import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
 import { nariñoFleets, Fleet } from "../data/demoFleets";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 // Extender el servicio para cargar datos demo iniciales
 class FleetService extends GenericApiService<Fleet> {
@@ -12,13 +14,13 @@ class FleetService extends GenericApiService<Fleet> {
   }
 }
 
-const config: DynamicTableCrudConfig<Fleet> = {
+const baseConfig: DynamicTableCrudConfig<Fleet> = {
   tableName: "transport-fleet",
   title: "Flotas de Transporte - Nariño",
   subtitle: "Disponibilidad, capacidad y mantenimiento preventivo de vehículos.",
   enableSearch: true,
   searchPlaceholder: "Buscar por placa, marca o conductor...",
-  searchKeys: ["placa", "marca", "conductor", "estado"],
+  searchKeys: ["id", "placa", "marca", "conductor", "estado"],
   filters: [
     { key: "estado", label: "Estado", options: ["activo", "mantenimiento", "en ruta"] },
   ],
@@ -67,5 +69,18 @@ const config: DynamicTableCrudConfig<Fleet> = {
 const api = new FleetService();
 
 export function TransportFleetPage() {
+  const [params] = useSearchParams();
+  const estado = params.get("estado") ?? "";
+  const q = params.get("q") ?? "";
+
+  const config = useMemo<DynamicTableCrudConfig<Fleet>>(() => {
+    return {
+      ...baseConfig,
+      initialSearchText: q,
+      ...(estado ? { initialFilterValues: { estado } } : {}),
+      initialStateToken: `estado=${estado}|q=${q}`,
+    };
+  }, [estado, q]);
+
   return <DynamicTableCrud config={config} api={api} />;
 }

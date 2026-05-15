@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import { CheckCircle2, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, RefreshCw, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { Surface } from "@/shared/ui/Surface";
 import { Button } from "@/shared/ui/Button";
 import { Skeleton } from "@/shared/ui/Skeleton";
 import { isDemoMode } from "@/core/config/flags";
 import { systemAlerts, Alert } from "../data/demoAlerts";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Cliente REST solo para modo producción (carga diferida para evitar errores en modo demo)
 let clientPromise: Promise<any> | null = null;
@@ -68,19 +69,48 @@ function saveAlerts(alerts: Alert[]) {
 type AlertRow = Alert & Record<string, unknown>;
 
 export function AlertsPage() {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [rows, setRows] = useState<AlertRow[]>([]);
-  const [level, setLevel] = useState<string>("");
+  const [level, setLevel] = useState<string>(() => params.get("nivel") ?? params.get("level") ?? "");
+  const [openOnly, setOpenOnly] = useState<boolean>(() => {
+    const raw = params.get("open") ?? "";
+    return raw === "1" || raw === "true";
+  });
+  const [query, setQuery] = useState<string>(() => params.get("q") ?? "");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    const nextLevel = params.get("nivel") ?? params.get("level") ?? "";
+    const rawOpen = params.get("open") ?? "";
+    const nextOpen = rawOpen === "1" || rawOpen === "true";
+    const nextQuery = params.get("q") ?? "";
+    setLevel(nextLevel);
+    setOpenOnly(nextOpen);
+    setQuery(nextQuery);
+  }, [params]);
+
   const filtered = useMemo(() => {
-    if (!level) {
-      return rows;
-    }
-    const key = level.toLowerCase();
-    return rows.filter((r) => String(r["level"] ?? r["severity"] ?? "").toLowerCase() === key);
-  }, [level, rows]);
+    const levelKey = level.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
+
+    return rows.filter((r) => {
+      const rowLevel = getRowLevel(r);
+      const message = getRowMessage(r);
+      const entity = String(r["entidad_id"] ?? r["entity_id"] ?? r["entityId"] ?? "");
+      const resolved = isRowResolved(r);
+
+      if (levelKey && rowLevel !== levelKey) return false;
+      if (openOnly && resolved) return false;
+      if (q) {
+        const haystack = `${message} ${entity}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [level, openOnly, query, rows]);
 
   async function load() {
     setIsLoading(true);
@@ -89,7 +119,7 @@ export function AlertsPage() {
       if (isDemoMode()) {
         const list = getStoredAlerts();
         setRows(list as AlertRow[]);
-        const criticalCount = list.filter((r) => String(r.nivel).toLowerCase() === "critical").length;
+        const criticalCount = list.filter((r) => String(r.nivel).toLowerCase() === "critical" && !r.resuelta).length;
         if (criticalCount > 0) {
           toast.error(`Hay ${criticalCount} alertas críticas.`);
         }
@@ -99,7 +129,7 @@ export function AlertsPage() {
         const data = client ? await client.get("/api/alerts") : [];
         const list = Array.isArray(data) ? data as AlertRow[] : [];
         setRows(list);
-        const criticalCount = list.filter((r) => String(r["level"] ?? r["severity"] ?? "").toLowerCase() === "critical").length;
+        const criticalCount = list.filter((r) => getRowLevel(r) === "critical" && !isRowResolved(r)).length;
         if (criticalCount > 0) {
           toast.error(`Hay ${criticalCount} alertas críticas.`);
         }
@@ -183,6 +213,15 @@ export function AlertsPage() {
           <p className="mt-1 text-sm text-slate-700 dark:text-white/70">Monitor de alertas en tiempo real (polling cada 15s).</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white">
+            <Search className="h-4 w-4 text-slate-500 dark:text-white/50" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar alerta..."
+              className="w-48 bg-transparent outline-none placeholder:text-slate-500 dark:placeholder:text-white/40"
+            />
+          </div>
           <select
             value={level}
             onChange={(e) => setLevel(e.target.value)}
@@ -194,6 +233,15 @@ export function AlertsPage() {
             <option value="medium">Medias</option>
             <option value="low">Bajas</option>
           </select>
+          <label className="flex items-center gap-2 rounded-xl border border-slate-300/80 bg-white px-3 py-2 text-sm text-slate-900 dark:border-white/15 dark:bg-white/10 dark:text-white">
+            <input
+              type="checkbox"
+              checked={openOnly}
+              onChange={(e) => setOpenOnly(e.target.checked)}
+              className="h-4 w-4 accent-emerald-500"
+            />
+            Solo activas
+          </label>
           <Button type="button" variant="secondary" onClick={() => void load()} disabled={isLoading}>
             <RefreshCw className="h-4 w-4" />
             Actualizar
@@ -232,18 +280,33 @@ export function AlertsPage() {
                       className="hover:bg-slate-900/5 dark:hover:bg-white/5"
                     >
                       <td className="whitespace-nowrap px-4 py-3 text-sm">
-                        <span className={badgeClass(String(r["level"] ?? r["severity"] ?? ""))}>
-                          {String(r["level"] ?? r["severity"] ?? "—")}
+                        <span className={badgeClass(getRowLevel(r))}>
+                          {getRowLevel(r) || "—"}
                         </span>
                       </td>
                       <td className="min-w-[320px] px-4 py-3 text-sm text-slate-800 dark:text-white/85">
-                        {String(r["message"] ?? r["description"] ?? r["title"] ?? "—")}
+                        {getRowMessage(r) || "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700 dark:text-white/70">
                         {formatDate(r["createdAt"] ?? r["created_at"] ?? r["timestamp"])}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                            onClick={() => {
+                              const to = resolveEntityRoute(r);
+                              if (to) {
+                                navigate(to);
+                              } else {
+                                toast("Esta alerta no tiene vínculo a un módulo.", { icon: "ℹ️" });
+                              }
+                            }}
+                            aria-label="Ir al módulo"
+                          >
+                            <ArrowUpRight className="h-4 w-4" />
+                          </button>
                           <button
                             type="button"
                             className="rounded-xl p-2 text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
@@ -286,6 +349,31 @@ export function AlertsPage() {
       </Surface>
     </div>
   );
+}
+
+function getRowLevel(row: AlertRow) {
+  return String(row["nivel"] ?? row["level"] ?? row["severity"] ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function getRowMessage(row: AlertRow) {
+  return String(row["mensaje"] ?? row["message"] ?? row["description"] ?? row["title"] ?? "").trim();
+}
+
+function isRowResolved(row: AlertRow) {
+  const raw = row["resuelta"] ?? row["resolved"] ?? row["isResolved"] ?? row["read"];
+  return Boolean(raw);
+}
+
+function resolveEntityRoute(row: AlertRow): string | null {
+  const entity = String(row["entidad_id"] ?? row["entity_id"] ?? row["entityId"] ?? "");
+  if (!entity) return null;
+  if (entity.startsWith("fleet-")) return `/app/admin/transport-fleet?q=${encodeURIComponent(entity)}`;
+  if (entity.startsWith("lot-")) return `/app/waste?q=${encodeURIComponent(entity)}`;
+  if (entity.startsWith("route-")) return `/app/routes?q=${encodeURIComponent(entity)}`;
+  if (entity.startsWith("mun-")) return `/app/admin/municipalities?q=${encodeURIComponent(entity)}`;
+  return null;
 }
 
 function extractId(row: AlertRow): unknown {

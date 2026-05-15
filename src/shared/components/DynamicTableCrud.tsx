@@ -36,6 +36,9 @@ export type DynamicTableCrudConfig<TRecord extends { id: EntityId }> = {
   enableSearch?: boolean;
   searchPlaceholder?: string;
   searchKeys?: Array<keyof TRecord & string>;
+  initialSearchText?: string;
+  initialFilterValues?: Record<string, string>;
+  initialStateToken?: string;
   filters?: Array<{
     key: keyof TRecord & string;
     label: string;
@@ -71,8 +74,10 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
-  const [searchText, setSearchText] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>(Object.create(null) as Record<string, string>);
+  const [searchText, setSearchText] = useState(config.initialSearchText ?? "");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(
+    (config.initialFilterValues ?? Object.create(null)) as Record<string, string>
+  );
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<TRecord | null>(null);
@@ -110,6 +115,12 @@ export function DynamicTableCrud<TRecord extends { id: EntityId }>({ config, api
   useEffect(() => {
     setPageSize(initialPageSize);
   }, [initialPageSize, config.tableName]);
+
+  useEffect(() => {
+    setSearchText(config.initialSearchText ?? "");
+    setFilterValues((config.initialFilterValues ?? Object.create(null)) as Record<string, string>);
+    setPage(1);
+  }, [config.tableName, config.initialStateToken]);
 
   const filterDefs = useMemo(() => config.filters ?? [], [config.filters]);
   const filterOptions = useMemo(() => {

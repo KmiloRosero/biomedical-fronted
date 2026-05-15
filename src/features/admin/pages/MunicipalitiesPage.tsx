@@ -2,6 +2,8 @@ import { GenericApiService } from "@/core/services/GenericApiService";
 import { DynamicTableCrud } from "@/shared/components/DynamicTableCrud";
 import type { DynamicTableCrudConfig } from "@/shared/components/DynamicTableCrud";
 import { nariñoMunicipalities, Municipality } from "../data/demoMunicipalities";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 // Extender el servicio para cargar datos demo iniciales
 class MunicipalityService extends GenericApiService<Municipality> {
@@ -18,7 +20,7 @@ const config: DynamicTableCrudConfig<Municipality> = {
   subtitle: "Catálogo maestro con cobertura territorial e indicadores de generación.",
   enableSearch: true,
   searchPlaceholder: "Buscar municipio...",
-  searchKeys: ["nombre", "region"],
+  searchKeys: ["id", "nombre", "region"],
   filters: [
     { key: "region", label: "Región", options: ["Sur", "Norte", "Centro", "Occidente", "Oriente"] },
   ],
@@ -59,5 +61,18 @@ const config: DynamicTableCrudConfig<Municipality> = {
 const api = new MunicipalityService();
 
 export function MunicipalitiesPage() {
-  return <DynamicTableCrud config={config} api={api} />;
+  const [params] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const region = params.get("region") ?? "";
+
+  const runtimeConfig = useMemo<DynamicTableCrudConfig<Municipality>>(() => {
+    return {
+      ...config,
+      initialSearchText: q,
+      ...(region ? { initialFilterValues: { region } } : {}),
+      initialStateToken: `region=${region}|q=${q}`,
+    };
+  }, [q, region]);
+
+  return <DynamicTableCrud config={runtimeConfig} api={api} />;
 }

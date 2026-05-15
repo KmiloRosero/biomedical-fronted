@@ -24,6 +24,7 @@ import {
 import { Surface } from "@/shared/ui/Surface";
 import { Skeleton } from "@/shared/ui/Skeleton";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import {
   MetricsService,
   type DashboardSummary,
@@ -34,6 +35,7 @@ import {
 const metricsService = new MetricsService();
 
 export function DashboardAnalyticsPage() {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -79,24 +81,28 @@ export function DashboardAnalyticsPage() {
         value: s ? `${formatNumber(s.collectedTodayKg)} kg` : "—",
         icon: <Recycle className="h-5 w-5" />,
         tone: "emerald" as const,
+        to: "/app/waste?estado=tratado",
       },
       {
         title: "Vehículos en ruta",
         value: s ? String(s.vehiclesOnRoute) : "—",
         icon: <Truck className="h-5 w-5" />,
         tone: "cyan" as const,
+        to: "/app/admin/transport-fleet?estado=en%20ruta",
       },
       {
         title: "Alertas críticas activas",
         value: s ? String(s.criticalAlerts) : "—",
         icon: <AlertTriangle className="h-5 w-5" />,
         tone: "rose" as const,
+        to: "/app/alerts?nivel=critical&open=1",
       },
       {
         title: "Órdenes pendientes",
         value: s ? String(s.pendingOrders) : "—",
         icon: <ClipboardList className="h-5 w-5" />,
         tone: "amber" as const,
+        to: "/app/waste?estado=generado",
       },
     ];
   }, [summary]);
@@ -154,7 +160,13 @@ export function DashboardAnalyticsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, delay: 0.05 * index }}
               >
-                <SummaryCard title={card.title} value={card.value} icon={card.icon} tone={card.tone} />
+                <SummaryCard
+                  title={card.title}
+                  value={card.value}
+                  icon={card.icon}
+                  tone={card.tone}
+                  onClick={() => navigate(card.to)}
+                />
               </motion.div>
             ))}
       </div>
@@ -264,8 +276,8 @@ export function DashboardAnalyticsPage() {
         whileHover={{ scale: 1.08, boxShadow: "0 20px 25px -5px rgba(16, 185, 129, 0.35)" }}
         whileTap={{ scale: 0.95 }}
         className="fixed bottom-8 right-8 z-50 grid h-16 w-16 place-items-center rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/40 transition-all hover:bg-emerald-500"
-        aria-label="Descargar reporte"
-        onClick={() => alert("Iniciando descarga del reporte en PDF...")}
+        aria-label="Ir a reportes"
+        onClick={() => navigate("/app/reports")}
       >
         <Download className="h-7 w-7" />
       </motion.button>
@@ -278,11 +290,13 @@ function SummaryCard({
   value,
   icon,
   tone,
+  onClick,
 }: {
   title: string;
   value: string;
   icon: React.ReactNode;
   tone: "emerald" | "cyan" | "rose" | "amber";
+  onClick?: () => void;
 }) {
   const toneClass =
     tone === "emerald"
@@ -294,16 +308,23 @@ function SummaryCard({
           : "bg-amber-500/10 text-amber-100 border-amber-400/20";
 
   return (
-    <Surface className="p-6 sm:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-base text-slate-700 dark:text-white/70 font-medium">{title}</div>
-          <div className="mt-3 text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</div>
+    <Surface
+      className={cn(
+        "p-6 sm:p-8 transition",
+        onClick ? "cursor-pointer hover:bg-slate-900/5 dark:hover:bg-white/5" : null
+      )}
+    >
+      <button type="button" className="w-full text-left" onClick={onClick}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-base text-slate-700 dark:text-white/70 font-medium">{title}</div>
+            <div className="mt-3 text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</div>
+          </div>
+          <div className={cn("grid h-14 w-14 place-items-center rounded-3xl border", toneClass)}>
+            {icon}
+          </div>
         </div>
-        <div className={cn("grid h-14 w-14 place-items-center rounded-3xl border", toneClass)}>
-          {icon}
-        </div>
-      </div>
+      </button>
     </Surface>
   );
 }
