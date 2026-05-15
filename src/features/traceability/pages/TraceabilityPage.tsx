@@ -618,7 +618,7 @@ export function TraceabilityPage() {
 
       <Dialog isOpen={isCreateStopOpen} title="Nueva parada" onClose={() => setIsCreateStopOpen(false)}>
         <JsonEditor
-          initialValue={{ name: "Parada", lat: 4.65, lng: -74.08, stage: "COLLECTION" }}
+          initialValue={{ name: "Parada", lat: 1.2136, lng: -77.2811, stage: "COLLECTION" }}
           onSubmit={createStop}
           submitLabel="Crear"
           isSubmitting={isSubmitting}

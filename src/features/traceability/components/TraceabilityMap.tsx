@@ -23,6 +23,7 @@ type AnimationCallbacks = {
   onPosition: (pos: LatLngExpression) => void;
   onMilestoneIndex: (index: number) => void;
   onCompleted: () => void;
+  onProgress: (partialRoute: Array<[number, number]>, visitedWaypointCount: number) => void;
 };
 
 class RouteAnimator {
@@ -50,6 +51,10 @@ class RouteAnimator {
       const distance = safeTotal * t;
       const pos = pointAtDistance(route, cumulative, distance);
       callbacks.onPosition(pos);
+
+      const partial = partialRouteAtDistance(route, cumulative, distance);
+      const visitedWaypointCount = resolveVisitedWaypointCount(cumulative, distance);
+      callbacks.onProgress(partial, visitedWaypointCount);
 
       const nextMilestoneIndex = resolveMilestoneIndex(milestoneRatios, t);
       if (nextMilestoneIndex > this.lastMilestoneIndex) {
@@ -105,6 +110,8 @@ export function TraceabilityMap({
   }, [points, waypoints]);
 
   const [truckPos, setTruckPos] = useState<LatLngExpression>(points[0]!.position);
+  const [progressRoute, setProgressRoute] = useState<Array<[number, number]>>([]);
+  const [visitedWaypointCount, setVisitedWaypointCount] = useState(0);
   const animatorRef = useRef<RouteAnimator | null>(null);
 
   useEffect(() => {
@@ -119,6 +126,8 @@ export function TraceabilityMap({
 
   useEffect(() => {
     setTruckPos(points[0]!.position);
+    setProgressRoute([]);
+    setVisitedWaypointCount(0);
   }, [animationKey, points]);
 
   useEffect(() => {
@@ -145,6 +154,10 @@ export function TraceabilityMap({
       onCompleted: () => {
         onCompleted();
       },
+      onProgress: (partial, visitedCount) => {
+        setProgressRoute(partial);
+        setVisitedWaypointCount(visitedCount);
+      },
     });
   }, [isTracking, onCompleted, onMilestone, points, route]);
 
@@ -168,9 +181,20 @@ export function TraceabilityMap({
           pathOptions={{ color: "#10b981", weight: 5, opacity: 0.85 }}
         />
 
+        {progressRoute.length >= 2 ? (
+          <Polyline
+            positions={progressRoute}
+            pathOptions={{ color: "#38bdf8", weight: 6, opacity: 0.95 }}
+          />
+        ) : null}
+
         {waypoints?.length
           ? waypoints.map((w, idx) => (
-              <Marker key={`${idx}-${w.label}`} position={w.position} icon={createPointIcon(w.label)} />
+              <Marker
+                key={`${idx}-${w.label}`}
+                position={w.position}
+                icon={createWaypointIcon(w.label, idx < visitedWaypointCount)}
+              />
             ))
           : null}
 
@@ -233,6 +257,24 @@ function createPointIcon(label: string) {
       '<div title="'
       + escapeHtml(label)
       + '" style="width:12px;height:12px;border-radius:999px;background:rgba(2,6,23,0.85);border:2px solid rgba(16,185,129,0.9);"></div>',
+  });
+}
+
+function createWaypointIcon(label: string, visited: boolean) {
+  const ring = visited ? "rgba(56,189,248,0.95)" : "rgba(16,185,129,0.9)";
+  const fill = visited ? "rgba(56,189,248,0.28)" : "rgba(2,6,23,0.85)";
+  return L.divIcon({
+    className: "",
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    html:
+      '<div title="'
+      + escapeHtml(label)
+      + '" style="width:14px;height:14px;border-radius:999px;background:'
+      + fill
+      + ';border:2px solid '
+      + ring
+      + ';box-shadow:0 10px 22px -14px rgba(56,189,248,0.55);"></div>',
   });
 }
 
@@ -301,6 +343,40 @@ function pointAtDistance(route: Array<[number, number]>, cumulative: number[], d
     a[0] + (b[0] - a[0]) * t,
     a[1] + (b[1] - a[1]) * t,
   ];
+}
+
+function partialRouteAtDistance(route: Array<[number, number]>, cumulative: number[], distance: number): Array<[number, number]> {
+  if (route.length === 0) {
+    return [];
+  }
+  if (distance <= 0) {
+    return [route[0]!];
+  }
+
+  const total = cumulative[cumulative.length - 1] ?? 0;
+  if (distance >= total) {
+    return route.slice();
+  }
+
+  let seg = 1;
+  while (seg < cumulative.length && cumulative[seg]! < distance) {
+    seg++;
+  }
+
+  const head = route.slice(0, seg);
+  const pos = pointAtDistance(route, cumulative, distance);
+  head.push(pos);
+  return head;
+}
+
+function resolveVisitedWaypointCount(cumulative: number[], distance: number): number {
+  let count = 0;
+  for (let i = 0; i < cumulative.length; i++) {
+    if (cumulative[i]! <= distance) {
+      count = i + 1;
+    }
+  }
+  return count;
 }
 
 function haversine(a: [number, number], b: [number, number]) {

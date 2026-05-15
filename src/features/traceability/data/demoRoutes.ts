@@ -2,43 +2,43 @@ import type { BackendRoute, BackendStop } from "../services/RoutesService";
 
 export const demoRoutes: BackendRoute[] = [
   {
-    id: "demo-bogota-01",
-    code: "BOG-01",
-    name: "Ruta Bogotá Norte",
+    id: "demo-pasto-01",
+    code: "PAS-01",
+    name: "Ruta Pasto Centro",
     status: "ACTIVE",
   },
   {
-    id: "demo-bogota-02",
-    code: "BOG-02",
-    name: "Ruta Bogotá Centro",
+    id: "demo-pasto-02",
+    code: "PAS-02",
+    name: "Ruta Pasto Norte",
     status: "ACTIVE",
   },
   {
-    id: "demo-soacha-01",
-    code: "SOA-01",
-    name: "Ruta Soacha",
+    id: "demo-pasto-03",
+    code: "PAS-03",
+    name: "Ruta Pasto Sur",
     status: "ACTIVE",
   },
 ];
 
 const demoStopsByRouteId: Record<string, BackendStop[]> = {
-  "demo-bogota-01": [
-    { id: "s1", name: "Hospital Universitario", lat: 4.6533, lng: -74.0837 },
-    { id: "s2", name: "Punto de recolección", lat: 4.6678, lng: -74.0896 },
-    { id: "s3", name: "Planta de tratamiento", lat: 4.7017, lng: -74.0721 },
-    { id: "s4", name: "Disposición final", lat: 4.7252, lng: -74.055 },
+  "demo-pasto-01": [
+    { id: "s1", name: "Hospital (Centro)", lat: 1.2142, lng: -77.2798 },
+    { id: "s2", name: "Punto de recolección", lat: 1.2186, lng: -77.2855 },
+    { id: "s3", name: "Planta de tratamiento", lat: 1.2264, lng: -77.2897 },
+    { id: "s4", name: "Disposición final", lat: 1.2332, lng: -77.2758 },
   ],
-  "demo-bogota-02": [
-    { id: "s1", name: "Clínica Central", lat: 4.624, lng: -74.071 },
-    { id: "s2", name: "Punto de transferencia", lat: 4.635, lng: -74.08 },
-    { id: "s3", name: "Planta de tratamiento", lat: 4.654, lng: -74.095 },
-    { id: "s4", name: "Disposición final", lat: 4.667, lng: -74.11 },
+  "demo-pasto-02": [
+    { id: "s1", name: "Clínica (Norte)", lat: 1.2335, lng: -77.2865 },
+    { id: "s2", name: "Transferencia", lat: 1.2441, lng: -77.2922 },
+    { id: "s3", name: "Tratamiento", lat: 1.252, lng: -77.283 },
+    { id: "s4", name: "Disposición final", lat: 1.2472, lng: -77.2688 },
   ],
-  "demo-soacha-01": [
-    { id: "s1", name: "Hospital de Soacha", lat: 4.579, lng: -74.215 },
-    { id: "s2", name: "Recolección municipal", lat: 4.586, lng: -74.205 },
-    { id: "s3", name: "Planta de tratamiento", lat: 4.602, lng: -74.19 },
-    { id: "s4", name: "Disposición final", lat: 4.624, lng: -74.175 },
+  "demo-pasto-03": [
+    { id: "s1", name: "Hospital (Sur)", lat: 1.1965, lng: -77.2862 },
+    { id: "s2", name: "Punto de recolección", lat: 1.191, lng: -77.2749 },
+    { id: "s3", name: "Tratamiento", lat: 1.2002, lng: -77.2635 },
+    { id: "s4", name: "Disposición final", lat: 1.2108, lng: -77.2582 },
   ],
 };
 
