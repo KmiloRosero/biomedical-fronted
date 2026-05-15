@@ -4,5 +4,7 @@ export type AnalyzerResponse = {
   report?: string;
   recommendations?: string[];
   extracted?: unknown;
+  isRelevant?: boolean;
+  relevanceScore?: number;
+  relevanceReason?: string;
 } & Record<string, unknown>;
-

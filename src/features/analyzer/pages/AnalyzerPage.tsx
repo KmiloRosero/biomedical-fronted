@@ -84,13 +84,18 @@ export function AnalyzerPage() {
   }
 
   async function handleCopyReport() {
-    const reportText = extractPrimaryReportText(result);
-    if (!reportText) {
+    const relevance = deriveRelevance(result);
+    const textToCopy =
+      relevance.status === "unrelated"
+        ? relevance.message
+        : extractPrimaryReportText(result);
+
+    if (!textToCopy) {
       toast.error("No hay texto para copiar");
       return;
     }
     try {
-      await navigator.clipboard.writeText(reportText);
+      await navigator.clipboard.writeText(textToCopy);
       toast.success("Reporte copiado");
     } catch {
       toast.error("No se pudo copiar");
@@ -263,7 +268,19 @@ export function AnalyzerPage() {
 
             {result ? (
               <div className="space-y-3">
-                {extractPrimaryReportText(result) ? (
+                {deriveRelevance(result).status === "unrelated" ? (
+                  <div>
+                    <div className="mb-2 text-sm font-medium">Validación</div>
+                    <CodeBlock className="border border-rose-200/60 bg-rose-50 text-sm leading-relaxed text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100 whitespace-pre-wrap">
+                      {deriveRelevance(result).message}
+                    </CodeBlock>
+                    {deriveRelevance(result).details ? (
+                      <div className="mt-2 text-xs text-slate-700 dark:text-white/60 whitespace-pre-wrap">
+                        {deriveRelevance(result).details}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : extractPrimaryReportText(result) ? (
                   <div>
                     <div className="mb-2 text-sm font-medium">Reporte</div>
                     <CodeBlock className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -322,6 +339,7 @@ export function AnalyzerPage() {
 
 function extractPrimaryReportText(value: AnalyzerResponse | null): string | null {
   if (!value) return null;
+  if (deriveRelevance(value).status === "unrelated") return null;
   const raw = value as Record<string, unknown>;
   const candidates = [
     value.report,
@@ -334,6 +352,45 @@ function extractPrimaryReportText(value: AnalyzerResponse | null): string | null
     if (typeof c === "string" && c.trim()) return c.trim();
   }
   return null;
+}
+
+function deriveRelevance(
+  value: AnalyzerResponse | null
+): { status: "related" | "unrelated" | "unknown"; message: string | null; details: string | null } {
+  if (!value) return { status: "unknown", message: null, details: null };
+  const raw = value as Record<string, unknown>;
+
+  const explicit =
+    value.isRelevant ??
+    (typeof raw["isRelevant"] === "boolean" ? (raw["isRelevant"] as boolean) : undefined) ??
+    (typeof raw["relatedToProject"] === "boolean" ? (raw["relatedToProject"] as boolean) : undefined) ??
+    (typeof raw["projectRelated"] === "boolean" ? (raw["projectRelated"] as boolean) : undefined) ??
+    (typeof raw["isRelated"] === "boolean" ? (raw["isRelated"] as boolean) : undefined) ??
+    (typeof raw["domainMatch"] === "boolean" ? (raw["domainMatch"] as boolean) : undefined);
+
+  if (explicit === true) {
+    return { status: "related", message: null, details: null };
+  }
+
+  const score =
+    value.relevanceScore ??
+    (typeof raw["relevanceScore"] === "number" ? (raw["relevanceScore"] as number) : undefined) ??
+    (typeof raw["confidence"] === "number" ? (raw["confidence"] as number) : undefined) ??
+    (typeof raw["similarity"] === "number" ? (raw["similarity"] as number) : undefined);
+
+  const reason =
+    value.relevanceReason ??
+    (typeof raw["relevanceReason"] === "string" ? (raw["relevanceReason"] as string) : undefined) ??
+    (typeof raw["reason"] === "string" ? (raw["reason"] as string) : undefined) ??
+    (typeof raw["message"] === "string" ? (raw["message"] as string) : undefined);
+
+  if (explicit === false || (typeof score === "number" && score >= 0 && score < 0.35)) {
+    const message = "La imagen no tiene relación con el proyecto.";
+    const details = reason?.trim() ? `Motivo: ${reason.trim()}` : null;
+    return { status: "unrelated", message, details };
+  }
+
+  return { status: "unknown", message: null, details: null };
 }
 
 function downloadAsFile(fileName: string, content: string, mime: string) {
