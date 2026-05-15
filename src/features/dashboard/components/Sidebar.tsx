@@ -133,13 +133,37 @@ export function Sidebar() {
   );
 
   function renderContent(collapsed: boolean, showCollapseToggle: boolean) {
+    const listMotion = {
+      hidden: { opacity: 0 },
+      show: { opacity: 1, transition: { staggerChildren: 0.04 } },
+    };
+
+    const itemMotion = {
+      hidden: { opacity: 0, x: -10 },
+      show: { opacity: 1, x: 0, transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const } },
+    };
+
     return (
     <div
       className={cn(
-        "h-full border-r border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-white/5",
+        "relative h-full border-r border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-white/5",
         collapsed ? "w-[72px]" : "w-[280px]"
       )}
     >
+      <motion.div
+        className="pointer-events-none absolute -inset-24 opacity-0 blur-3xl dark:opacity-100"
+        style={{
+          background:
+            "radial-gradient(circle at 20% 20%, rgba(16,185,129,0.18), transparent 55%), radial-gradient(circle at 85% 35%, rgba(56,189,248,0.14), transparent 60%), radial-gradient(circle at 55% 90%, rgba(99,102,241,0.14), transparent 55%)",
+        }}
+        animate={{
+          x: [0, 14, -10, 0],
+          y: [0, -8, 12, 0],
+          opacity: [0, 0.55, 0.35, 0],
+        }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+      />
+
       <div className="flex h-14 items-center justify-between px-3">
         <div
           className={cn(
@@ -163,52 +187,82 @@ export function Sidebar() {
       </div>
 
       <nav className="px-2">
-        <ul className="space-y-1">
+        <motion.ul
+          className="space-y-1"
+          variants={listMotion}
+          initial="hidden"
+          animate="show"
+        >
           {items.map((item) => {
             const isAllowed = isDemoMode() || !rbacEnabled || !item.roles || item.roles.includes(role);
             return (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-sm transition",
-                    isActive
-                      ? "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100"
-                      : isAllowed
-                        ? "text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
-                        : "cursor-not-allowed text-slate-400 dark:text-white/35",
-                    collapsed ? "justify-center" : null
-                  )
-                }
-                onClick={(e) => {
-                  if (!isAllowed) {
-                    e.preventDefault();
+              <motion.li key={item.to} variants={itemMotion}>
+                <NavLink
+                  to={item.to}
+                  onClick={(e) => {
+                    if (!isAllowed) {
+                      e.preventDefault();
+                      closeMobileSidebar();
+                      navigate("/app/forbidden", { replace: true });
+                      return;
+                    }
+                    if (item.to.endsWith("/assistant")) {
+                      e.preventDefault();
+                      openAssistant();
+                      closeMobileSidebar();
+                      return;
+                    }
                     closeMobileSidebar();
-                    navigate("/app/forbidden", { replace: true });
-                    return;
-                  }
-                  if (item.to.endsWith("/assistant")) {
-                    e.preventDefault();
-                    openAssistant();
-                    closeMobileSidebar();
-                    return;
-                  }
-                  closeMobileSidebar();
-                }}
-              >
-                {item.icon}
-                {collapsed ? null : (
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{item.label}</span>
-                    {isAllowed ? null : <Lock className="h-4 w-4 shrink-0 opacity-70" />}
-                  </div>
-                )}
-              </NavLink>
-            </li>
+                  }}
+                >
+                  {({ isActive }) => (
+                    <motion.div
+                      whileHover={isAllowed ? { x: 2 } : {}}
+                      whileTap={isAllowed ? { scale: 0.99 } : {}}
+                      transition={{ duration: 0.14 }}
+                      className={cn(
+                        "relative flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-sm",
+                        isActive ? "text-emerald-900 dark:text-emerald-100" : null,
+                        isAllowed
+                          ? "text-slate-700 hover:bg-slate-900/5 dark:text-white/80 dark:hover:bg-white/10"
+                          : "cursor-not-allowed text-slate-400 dark:text-white/35",
+                        collapsed ? "justify-center" : null
+                      )}
+                    >
+                      {isActive ? (
+                        <motion.div
+                          layoutId="sidebar-active"
+                          className="absolute inset-0 rounded-xl bg-emerald-500/15"
+                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        />
+                      ) : null}
+                      <motion.div
+                        className={cn(
+                          "pointer-events-none absolute inset-0 rounded-xl opacity-0",
+                          isActive ? "opacity-100" : null
+                        )}
+                        style={{
+                          background:
+                            "radial-gradient(circle at 20% 20%, rgba(16,185,129,0.16), transparent 55%), radial-gradient(circle at 80% 50%, rgba(56,189,248,0.10), transparent 60%)",
+                        }}
+                        animate={isActive ? { opacity: [0.35, 0.55, 0.35] } : { opacity: 0 }}
+                        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+                      />
+
+                      <div className="relative">{item.icon}</div>
+                      {collapsed ? null : (
+                        <div className="relative flex min-w-0 items-center gap-2">
+                          <span className="truncate">{item.label}</span>
+                          {isAllowed ? null : <Lock className="h-4 w-4 shrink-0 opacity-70" />}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </NavLink>
+              </motion.li>
           );
           })}
-        </ul>
+        </motion.ul>
       </nav>
     </div>
     );
